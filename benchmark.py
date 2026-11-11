@@ -144,19 +144,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Limit number of questions to evaluate")
     args = parser.parse_args()
 
-    data_path = args.data
-    if not data_path:
-        default_candidates = [
-            os.path.join(os.path.dirname(__file__), "data", "longmemeval_s.json"),
-            r"C:\Users\14140\Desktop\HLM历代版本\HLM试验场\data\longmemeval\longmemeval_s.json"
-        ]
-        for c in default_candidates:
-            if os.path.exists(c):
-                data_path = c
-                break
-
-    if not data_path:
-        data_path = os.path.join(os.path.dirname(__file__), "data", "longmemeval_s.json")
+    data_path = args.data or os.path.join(os.path.dirname(__file__), "data", "longmemeval_s.json")
 
     evaluate(data_path, limit=args.limit)
 
