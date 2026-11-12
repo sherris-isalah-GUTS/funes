@@ -5,7 +5,7 @@
 ### 一种超轻量、零向量双流仿生记忆检索与端侧高速搜索架构
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23921389.svg)](https://doi.org/10.5281/zenodo.23921389)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0%20(Pure%20Python)-brightgreen.svg)]()
 [![Hardware](https://img.shields.io/badge/GPU%20VRAM-0%20MB-success.svg)]()
@@ -247,9 +247,10 @@ python benchmark.py --data data/longmemeval_s.json
 
 ---
 
-## ⚖️ License & Contact / 开源协议与联系
+## ⚖️ License & Commercial Dual-Licensing / 开源协议与商业双授权
 
-- **License**: [Apache License 2.0](LICENSE) — free for commercial, research, and private edge deployment.
+- **Open-Source License ([GNU AGPLv3 / AGPL-3.0](LICENSE))**: Free for personal, academic, research, and open-source use under the terms of the GNU Affero General Public License v3.0. In accordance with AGPL-3.0, any modified version or derivative work—including **network/SaaS deployments**—must disclose its full source code under AGPL-3.0 and retain original attribution.
+- **Commercial / Closed-Source Licensing（商业闭源双授权）**: If you wish to embed Funes into a proprietary closed-source product, commercial OEM firmware, or hosted commercial API without AGPL-3.0 source-disclosure obligations, please contact **`sherjia192@gmail.com`** for a commercial license.
 - **Defensive Prior Art**: Core biomimetic four-stage pipeline disclosed openly as prior art alongside the Zenodo preprint (`10.5281/zenodo.23921389`).
 - **Author & Contact**: Sherris Isalah (艾浩喆) · `sherjia192@gmail.com`
 

@@ -5,9 +5,9 @@ Funes: Ultra-Lightweight Biomimetic Dual-Stream Memory Engine
 A zero-embedding, CPU-native long-term memory and edge search engine
 implemented purely in the Python standard library.
 
-Author: Sherris Isalah (艾浩喆) | Independent Developer
+Author: Sherris Isalah (艾浩喆) <sherjia192@gmail.com>
 Preprint DOI: 10.5281/zenodo.23921389
-License: Apache-2.0
+License: GNU AGPLv3 (AGPL-3.0); commercial closed-source license available via email.
 """
 
 from collections import defaultdict
