@@ -2,52 +2,79 @@
 
 # 🧠 FUNES (HLM)
 ### An Ultra-Lightweight, Zero-Embedding Biomimetic Memory Retrieval Engine & Fast Edge Search Architecture
-### 当大语言模型坠入遗忘之渊，记忆流向何方？一种超轻量、零向量双流仿生记忆检索与端侧高速搜索架构
+### 一种超轻量、零向量双流仿生记忆检索与端侧高速搜索架构
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23921389.svg)](https://doi.org/10.5281/zenodo.23921389)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0%20(Pure%20Python)-brightgreen.svg)]()
 [![Hardware](https://img.shields.io/badge/GPU%20VRAM-0%20MB-success.svg)]()
-[![Memory](https://img.shields.io/badge/RAM-18.6%20MB-purple.svg)]()
+[![Memory](https://img.shields.io/badge/RAM-~18.6%20MB-purple.svg)]()
 
-**Author / 作者**: [Sherris Isalah (艾浩喆)](https://doi.org/10.5281/zenodo.23921389) | Independent Developer / 独立开发者  
-**Preprint & Architecture Whitepaper / 预印本论文**: [Zenodo (CERN) Open Access (DOI: 10.5281/zenodo.23921389)](https://doi.org/10.5281/zenodo.23921389)
+**Author / 作者**: Sherris Isalah (艾浩喆) · `sherjia192@gmail.com`  
+**Preprint Paper / 预印本论文**: [Zenodo Record #23921389](https://zenodo.org/records/23921389) · [DOI: 10.5281/zenodo.23921389](https://doi.org/10.5281/zenodo.23921389)
 
-[ **English** ](#-english) | [ **中文说明** ](#-中文说明) | [ **☕ Sponsorship / 赞助打赏** ](#-sponsorship--support--赞助与打赏)
+[ **English** ](#-english) | [ **中文说明** ](#-中文说明) | [ **📌 Design & Benchmark Notes** ](#-usage-principles--benchmark-disclaimer)
 
 </div>
+
+---
+
+<a name="usage-principles--benchmark-disclaimer"></a>
+## 📌 Usage Principles & Benchmark Disclaimer / 核心使用原则与评测说明
+
+> [!IMPORTANT]
+> **1. Query with Unmodified Natural Language / 直接使用原生自然语言提问**  
+> Pass user questions **as-is** in natural language (`engine.retrieve(query)` / `engine.build_prompt(query)`). Do **not** rewrite queries into keyword tricks or hardcode domain trigger words.
+>
+> **2. Associative Memory Architecture / 联想检索架构定位**  
+> Funes is fundamentally an **associative memory retrieval architecture**. Its role is to rapidly recall relevant historical context streams for an LLM to reference and reason over—rather than acting as a standalone answer oracle without downstream model reasoning.
+>
+> **3. Independent Benchmark Reference (Not Official Leaderboard) / 非官方指定模型跑分声明**  
+> End-to-end QA benchmarks reported below were evaluated using **third-party / open-weight models** (e.g., `Qwen/Qwen3.5-4B` with `glm-5.3-flash` judge, or `DeepSeek-V4.1-Flash` in the preprint) rather than LongMemEval's officially designated leaderboard model/judge (GPT-4o). Because they do not use the official leaderboard model setup, these numbers are provided as **empirical reference points only** and have **not** been submitted to the official LongMemEval leaderboard.
 
 ---
 
 <a name="english"></a>
 ## 🌐 English
 
-### ⚡ Highlights (Peak Verified Performance)
+### ⚡ Highlights
 
-Funes (internal codename **HLM / Human-Like Memory**) shatters the heavy-compute paradigm of LLM long-term memory. Operating natively on standard CPUs with **100% pure Python standard library (zero external dependencies)**, Funes replaces continuous floating-point vector manifolds with discrete eukaryotic chromatin topology, Hebbian synaptic plasticity, and epigenetic methylation silencing.
+Funes (internal codename **HLM / Human-Like Memory**) provides a CPU-native alternative to heavy vector databases and LLM-driven memory loops. Built with **100% pure Python standard library (zero external dependencies)**, Funes models long-term memory through calendar-partitioned chromatin blocks, Hebbian co-occurrence associations, and square-root document-frequency silencing.
 
-- 🚀 **18.6 MB Resident RAM**: Years of interaction histories managed within a deterministic footprint.
-- ❄️ **0 MB GPU VRAM & 0 API Tokens**: Zero embeddings, zero LLM reflection loops during retrieval ($0.00 compute cost).
-- ⚡ **6.6 ms Point Lookup Latency**: Peak point retrieval in single-digit milliseconds; full 500-question suite in **71.36 seconds** (9.5 queries/sec peak throughput).
-- 🎯 **97.80% Hit Rate on LongMemEval-S**: Verified across the complete 500-question ICLR 2025 benchmark under a physically isolated double-blind protocol (Any-session: **97.80%**, Full-session recall: **92.00%**, Gold substring: **81.60%**).
-- 🛡️ **Dual-Tier ACID Self-Healing**: SQLite-backed chromatin persistence with deterministic crash recovery (< 80ms).
+- 🚀 **~18.6 MB Resident RAM**: Compact in-memory or SQLite WAL footprint across long multi-session histories.
+- ❄️ **0 MB GPU VRAM & 0 Retrieval Tokens**: No embedding model weights, no LLM extraction/reflection loops during ingestion or search (`$0.00` retrieval cost).
+- ⚡ **Millisecond Retrieval**: Single-digit millisecond point lookups; full 500-question LongMemEval-S retrieval runs in roughly **~1–2 minutes** on standard CPUs (`~70–120 s` depending on hardware).
+- 🎯 **~98% Any-Session Hit Rate on LongMemEval-S**: Clean, zero-keyword public release achieves **~98%** Any-Session Hit Rate and **~92%** Full-Session Recall across all 500 questions.
+- 🛡️ **SQLite WAL Persistence**: Single-file storage with automatic metadata flush and fast cold reload.
 
 ---
 
-### 📊 Benchmark Results (ICLR 2025 LongMemEval-S)
+### 📊 Benchmark Overview (ICLR 2025 LongMemEval-S, 500 Questions)
 
-Evaluated under a physically isolated double-blind protocol across the complete 500 questions of LongMemEval-S:
+#### 1. Retrieval Layer (CPU-Only, Clean Zero-Keyword Public Release)
 
-| Architecture | Paradigm | Any-Session Hit Rate | Full-Session Recall | Gold Substring Match | Total 500-Q Suite Runtime | Resource Profile |
-| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **Vanilla BM25** | Lexical Inverted Index | 73.40% | 52.80% | 46.20% | 48.2 s | 16 MB / 0 MB VRAM |
-| **Dense Vector RAG (ChromaDB)** | text-embedding-3-small | 86.40% | 68.20% | 61.40% | 340.5 s | 1,450 MB / 4,096 MB VRAM |
-| **Mem0 (Hybrid Graph+Vector)** | Dense + Triplet Graph | 89.60% | 71.00% | 64.80% | 1,820.0 s | 3,200 MB / 8,192 MB VRAM |
-| **GraphRAG (Microsoft)** | Hierarchical Community Graph | 91.20% | 74.40% | 66.20% | 4,200.0 s | Prohibitive LLM Extraction Cost |
-| **Funes 1.0 Advance (Ours)** | **Biomimetic Dual-Stream** | **97.80%** (489/500) | **92.00%** (460/500) | **81.60%** (408/500) | **71.36 s** (0.14 s/query) | **18.6 MB / 0 MB VRAM ($0.00)** |
+Evaluated across all 500 questions of LongMemEval-S with engine state reset between questions:
 
-*\*Note: Metrics reflect peak empirical performance independently verified across full 500 questions. End-to-end QA accuracy reaches **93.20%** under double-blind evaluation.*
+| Architecture | Paradigm | Any-Session Hit Rate | Full-Session Recall | Total 500-Q Runtime | Resource Profile |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Vanilla BM25** | Lexical Inverted Index | ~73.4% | ~52.8% | ~48 s | ~16 MB RAM / 0 VRAM |
+| **Dense Vector RAG (ChromaDB)** | `text-embedding-3-small` | ~86.4% | ~68.2% | ~340 s | ~1.45 GB RAM / ~4 GB VRAM |
+| **Mem0 (Hybrid Graph+Vector)** | Dense + Triplet Graph | ~89.6% | ~71.0% | ~1,820 s | ~3.2 GB RAM / ~8 GB VRAM |
+| **Funes 1.0 (Public Release)** | **Biomimetic Dual-Stream** | **~98.0% – 98.2%** | **~91.8% – 92.0%** | **~71 – 120 s** | **~18.6 MB RAM / 0 VRAM ($0.00)** |
+
+*Note: Direct normalized substring overlap on raw retrieved turns via `benchmark.py` is roughly `~43%` in the clean keyword-free release (as many LongMemEval answers require synthesis, preference alignment, or temporal arithmetic by the downstream LLM rather than verbatim substring matching).*
+
+#### 2. Downstream End-to-End QA Reference (Edge 4B & Cloud Models)
+
+| Memory Engine + Answering Model | Judge Model | Overall Accuracy (500 Q) | Avg Prompt Tokens / Q | Notes |
+| :--- | :---: | :---: | :---: | :--- |
+| **Funes (Public Release) + `Qwen/Qwen3.5-4B`** | `glm-5.3-flash` | **70.40%** (352/500) | **~4,815** | Pure zero-keyword release, `enable_thinking=False` |
+| HLM V1.6.0 + `Qwen/Qwen3.5-4B` (V2 Prompt) | `DeepSeek-V4.1-Flash` | 64.80% (324/500) | ~8,743 | Legacy architecture reference |
+| HLM V1.6.0 + `Qwen/Qwen3.5-4B` (V1 Prompt) | `DeepSeek-V4.1-Flash` | 49.40% (247/500) | ~8,675 | Legacy architecture baseline |
+| Funes + `DeepSeek-V4.1-Flash` (Preprint) | `glm-5.3-flash` | ~93.20% | — | Preprint cloud-reader reference |
+
+> *Disclaimer: None of the end-to-end runs above used LongMemEval's official GPT-4o evaluation setup; figures are shared for transparent reference only and are not official leaderboard submissions.*
 
 ---
 
@@ -55,323 +82,156 @@ Evaluated under a physically isolated double-blind protocol across the complete 
 
 ```mermaid
 flowchart TD
-    Q["User Query (q)"] --> T["1. Transducer (Signal Transduction)"]
-    
+    Q["Raw Natural Language Query (q)"] --> T["1. Transducer (Signal Transduction)"]
+
     subgraph S1 ["Multi-Track Probe Synthesis"]
-        T --> T1["Track A: Innate Instinct (CRISPR gRNA Probes)"]
+        T --> T1["Track A: Rigid Probes (gRNA Tokens)"]
         T --> T2["Track B: Hebbian Synaptic Network (miRNA Probes)"]
-        T --> T3["Track C: Chronobiological Clock Offset Vector"]
+        T --> T3["Track C: Relative Temporal Offset Vector"]
     end
-    
+
     T1 & T2 & T3 --> R["2. Remo (Chromatin Remodeling Engine)"]
-    
+
     subgraph S2 ["Topological Domain Activation"]
-        R --> R1["TAD Calendar DateBlocks (A/B Compartment Phase Separation)"]
-        R --> R2["Super-Enhancer Cooperative Activation: synergy = len^1.5"]
-        R --> R3["Dynamic Hydration / Dehydration: Memory locked < 18.6MB"]
+        R --> R1["TAD Calendar DateBlocks (A/B Compartment Hydration)"]
+        R --> R2["Super-Enhancer Synergy: len^1.5"]
+        R --> R3["Inactive Block Dehydration"]
     end
-    
+
     R2 --> H["3. Heli (Transcription Helicase)"]
-    
+
     subgraph S3 ["Causal Transcription Bubble"]
-        H --> H1["CTCF Insulator Protection (Strict Session Boundary)"]
-        H --> H2["Asymmetric Causal Window [-2, +3] Unwinding"]
+        H --> H1["Session-Boundary Isolation"]
+        H --> H2["Asymmetric Causal Window [-2, +3]"]
     end
-    
-    H2 --> M["4. MolecularSoup (Thermodynamic Hybridization)"]
-    
-    subgraph S4 ["Dual-Stream Resonance"]
-        M --> M1["Stream 1: Rigid gRNA Boundary Match (Zero-width assertions)"]
-        M --> M2["Stream 2: Flexible miRNA Resonance + Square-Root Methylation Silencing"]
+
+    H2 --> M["4. MolecularSoup (Dual-Stream Hybridization)"]
+
+    subgraph S4 ["Dual-Stream Scoring"]
+        M --> M1["Stream 1: Exact Probe Boundary Match + BM25 Norm"]
+        M --> M2["Stream 2: Associative Resonance + sqrt(df+1) Silencing"]
     end
-    
-    M1 & M2 --> P["5. DualStreamPresenter (Top-K & Timeline Restoration)"]
-    P --> Out["High-SNR Context Prompt for LLM"]
+
+    M1 & M2 --> P["5. DualStreamPresenter (Chronological Context Assembly)"]
+    P --> Out["Dual-Stream Reference Context for LLM"]
 ```
 
 ---
 
-### ⚙️ Configuration Guide
+### 🚀 Quickstart & Examples
 
-Funes is configured via constructor parameters in `FunesEngine`:
+Zero installation dependencies required (Python 3.8+):
 
-| Parameter | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `db_path` | `Optional[str]` | `None` | SQLite file path for persistent storage with WAL mode. If `None`, runs in ultra-fast, zero-I/O **pure In-Memory RAM mode**. |
-
-#### Ingestion Schema (`add_turn` & `batch_add_turns`)
-
-```python
-engine.add_turn(
-    session_id="sess_2026_01",  # Unique session or dialogue thread identifier
-    date_str="2026-05-01",      # ISO format date string (YYYY-MM-DD)
-    role="user",                # Speaker: 'user', 'assistant', 'system'
-    content="...",              # Raw conversational text
-    timestamp=1777600000.0      # (Optional) POSIX epoch float
-)
-```
-
-#### Dual-Stream Output Structure (`DualStreamResult`)
-
-When executing `result = engine.retrieve(query, reference_date="YYYY-MM-DD")`:
-- `result.exact_facts`: High-precision causal anchors from rigid probe hybridization (Stream 1).
-- `result.fuzzy_contexts`: High-recall topological associations smoothed by Hebbian synaptic resonance (Stream 2).
-- `result.latency_ms`: Total execution time in milliseconds (typically 5 to 15 ms).
-- `result.opened_blocks`: Calendar blocks unwound during chromatin phase separation.
-
----
-
-### 🚢 Deployment Guide
-
-#### 1. Embedded Module (Recommended for Agents)
-Copy `funes.py` directly into your agent or LLM service repo:
-```python
-from funes import FunesEngine
-
-# Initialize once per agent service
-memory = FunesEngine(db_path="./agent_memory.db")
-
-def chat_endpoint(user_message: str):
-    # 1. Retrieve relevant history (0 tokens, ~6ms)
-    context_prompt = memory.build_prompt(user_message)
-    
-    # 2. Call LLM with enriched context
-    response = call_llm(system=context_prompt, prompt=user_message)
-    
-    # 3. Ingest turn into memory
-    memory.add_turn(session_id="curr", date_str="2026-11-04", role="user", content=user_message)
-    memory.add_turn(session_id="curr", date_str="2026-11-04", role="assistant", content=response)
-    return response
-```
-
-#### 2. REST API Microservice (FastAPI Wrapper)
-```python
-from fastapi import FastAPI
-from pydantic import BaseModel
-from funes import FunesEngine
-
-app = FastAPI(title="Funes Memory Service")
-engine = FunesEngine(db_path="production_memory.db")
-
-class TurnPayload(BaseModel):
-    session_id: str
-    date_str: str
-    role: str
-    content: str
-
-@app.post("/memory/add")
-def add_turn(item: TurnPayload):
-    engine.add_turn(item.session_id, item.date_str, item.role, item.content)
-    return {"status": "ok"}
-
-@app.get("/memory/retrieve")
-def query_memory(q: str, ref_date: str = None):
-    res = engine.retrieve(q, reference_date=ref_date)
-    return {
-        "latency_ms": res.latency_ms,
-        "facts": [{"role": t.role, "text": t.content} for t, score, _ in res.exact_facts]
-    }
-```
-
-#### 3. Low-Cost Edge / IoT Deployment
-Because Funes has **0 dependencies** and consumes only **18.6 MB RAM**, it runs natively on Raspberry Pi Zero 2W, ARM Cortex-A boards, and low-end cloud VPS instances without needing CUDA or C++ compilers.
-
----
-
-### 🧪 Reproduction & Testing Guide (复测方法)
-
-You can independently verify the benchmarks locally using the included harness.
-
-#### Step 1: Environment Sanity Check
-Ensure Python 3.8+ is installed. No pip packages are required:
 ```bash
-python --version
+# Run quickstart demo
+python examples/quickstart.py
+
+# Run edge local-search demo
+python examples/local_search.py
+
+# Run unit tests
+python -m unittest discover -s tests -v
 ```
 
-#### Step 2: 10-Question Quick Smoke Test (~1.2 seconds)
-Verify ingestion, dual-stream retrieval, and accuracy calculation:
+Minimal embedded usage ([examples/quickstart.py](examples/quickstart.py)):
+
+```python
+from funes import FunesEngine
+
+# Use db_path=None for pure RAM, or pass a path for persistent SQLite WAL mode
+engine = FunesEngine(db_path="./agent_memory.db")
+
+engine.add_turn(
+    session_id="sess_01",
+    date_str="2026-05-01",
+    role="user",
+    content="I bought a 16-inch MacBook Pro in Seattle for $2,499.",
+)
+
+# Query directly with raw natural language
+prompt = engine.build_prompt(
+    "What laptop did I buy in Seattle?",
+    reference_date="2026-05-15",
+)
+# Pass `prompt` to any LLM as memory context
+```
+
+You can also inspect [examples/local_search.py](examples/local_search.py), [tests/test_funes.py](tests/test_funes.py), and [benchmark.py](benchmark.py).
+
+---
+
+### 🧪 Reproducing the Retrieval Benchmark
+
+1. Place `longmemeval_s.json` under `data/longmemeval_s.json` (see [data/README.md](data/README.md)).
+2. Run a quick 10-question smoke check or the full 500-question evaluation:
 ```bash
 python benchmark.py --limit 10
-```
-
-#### Step 3: Full 500-Question LongMemEval-S Evaluation (~71 seconds)
-1. Ensure `longmemeval_s.json` is present in `data/longmemeval_s.json` (see [data/README.md](data/README.md)).
-2. Run the full double-blind benchmark:
-```bash
 python benchmark.py --data data/longmemeval_s.json
 ```
-
-#### Step 4: Expected Output Verification
-Upon completion, the runner displays an ASCII summary matching the whitepaper:
-```text
-================================================================================
-                    LongMemEval-S Evaluation Summary
-================================================================================
-Total Questions Evaluated       : 500
-Total Evaluation Time           : ~71.36 s
-Average Throughput              : ~7.0 - 9.5 questions/s
-
-RETRIEVAL METRICS:
-  Any-Session Hit Rate          : 97.80% (489 / 500)
-  Full-Session Recall           : 92.00% (460 / 500)
-  Gold Substring Match          : 81.60% (408 / 500)
-
-RESOURCE PROFILE:
-  Resident RAM                  : ~18.6 MB
-  GPU VRAM                      : 0 MB
-  External Token Cost           : $0.00 (Zero Token Billing)
-================================================================================
-```
+3. Typical clean-release output across 500 questions:
+   - `Any-Session Hit Rate`: `~98%` (`~490–491 / 500`)
+   - `Full-Session Recall`: `~92%` (`~459–460 / 500`)
+   - `Total Runtime`: `~70–120 s` (depending on CPU)
 
 ---
 
 <a name="中文说明"></a>
 ## 🇨🇳 中文说明
 
-### 🌟 核心突破与实测指标
+### 🌟 核心特性与定位
 
-Funes（内部代号 **HLM / Human-Like Memory**）彻底颠覆了大模型长期记忆必须依赖重型算力的传统范式。本引擎采用 **100% 纯 Python 标准库编写，零外部依赖（不需要 pip 安装任何第三方库）**，在普通 CPU 上原生运行。Funes 摒弃了连续浮点向量空间，转而以**真核生物染色质三维拓扑、赫布突触可塑性与表观遗传甲基化沉默机制**为数学蓝本，构建高召回率的离散联想中枢。
+Funes（内部代号 **HLM / Human-Like Memory**）是一套 **100% 纯 Python 标准库实现、零外部依赖** 的轻量化长期记忆检索与端侧搜索架构。它不依赖任何向量数据库或嵌入模型，而是利用“日历拓扑分区（DateBlock）＋ 赫布共现联想网络 ＋ 表观遗传高频词衰减 ＋ 非对称因果滑窗”，在普通 CPU 上毫秒级捞出记忆线索，交给大模型做参考。
 
-* 🚀 **18.6 MB 超极简常驻内存**：多年交互的历史会话与实体记忆，被稳稳锁定在极低的物理内存包络内。
-* ❄️ **0 MB GPU 显存 & 0 API Token 消耗**：彻底剥离 Embedding 向量编码，写入与召回阶段无需任何大模型反思汇总（计算成本 **\$0.00**）。
-* ⚡ **6.6 ms 单点查询延迟**：核心点查毫秒级响应，全量 500 题基准测试仅耗时 **71.36 秒**（峰值吞吐 **9.5 题/秒**）。
-* 🎯 **97.80% ICLR 2025 LongMemEval-S 峰值命中率**：在 500 题物理隔离双盲评测中，取得 **97.80%** 任意会话命中率、**92.00%** 完整证据全召回率、**81.60%** 标准答案子串命中率，端到端问答准确率达 **93.20%**。
-* 🛡️ **双层 ACID 自愈机制**：基于 SQLite WAL 模式与确定性拓扑索引，崩溃重启恢复时间小于 80 毫秒。
-
----
-
-### 💡 为什么设计 Funes？（攻克记忆三难困境）
-
-现代大语言模型在长期跨会话交互中普遍遭遇“记忆三难困境”（The Memory Trilemma）：
-1. **上下文暴力拼接**：二次方计算开销，带来严重的上下文迷失（Lost-in-the-Middle）；
-2. **稠密向量数据库（Vector-RAG）**：常驻数 GB 显存/内存，依赖外部模型编码，对于精确型号、专有名词和短实体存在无法消除的语义漂移；
-3. **知识图谱抽取（Graph-RAG）**：后台递归调用大模型抽取三元组与摘要，Token 账单高昂，无法在边缘算力受限设备上离线运行。
-
-受博尔赫斯小说《博闻强记的富内斯》（*Funes the Memorious*）启发——**“思考即是遗忘差异，即是抽象”**。Funes 证明：**不依赖浮点矩阵乘法，仅凭纯离散数据结构与认知时序衰减，同样能在边缘设备上实现媲美甚至超越重型向量检索的精度。**
+- 🚀 **极低内存占用**：常驻内存约 `~18.6 MB`，支持纯内存或单文件 SQLite WAL 持久化。
+- ❄️ **零显存 / 零检索 Token 费用**：建库与检索阶段均不调用大模型或向量模型（检索算力成本 `$0.00`）。
+- 🎯 **自然语言直接检索**：设计为**联想式记忆中枢**——使用时不建议手动改写问题或硬编码关键词，直接传入用户原生自然语言，由底层提取探针并组装双流上下文供大模型参考推理。
+- 🧪 **零作弊干净代码**：公开发布版 [`funes.py`](funes.py) 不含任何面向评测集特调的关键词词表。
 
 ---
 
-### ⚙️ 详细配置指南
+### 📊 实测参考数据（LongMemEval-S 全量 500 题）
 
-Funes 引擎通过 `FunesEngine` 构造函数进行轻量配置：
+#### 1. 纯检索层表现（当前干净公开版实测）
+- **Any-Session Hit Rate（任意目标会话命中率）**：**约 `98%`**（`~490–491 / 500`）
+- **Full-Session Recall（完整目标会话全召回率）**：**约 `92%`**（`~459–460 / 500`）
+- **500 题全量运行耗时**：**约 `70 – 120 秒`**（视本地 CPU 性能而定）
+- **硬件与开销**：`~18.6 MB` 内存 / `0 MB` GPU 显存 / `0` 检索 Token
 
-| 参数名 | 类型 | 默认值 | 详细说明 |
-| :--- | :--- | :--- | :--- |
-| `db_path` | `Optional[str]` | `None` | 持久化 SQLite 单文件路径。若传入 `None`，则直接进入**纯内存模式（In-Memory）**，零磁盘 I/O，速度最快。若传入具体路径（如 `"memory.db"`），引擎会自动开启 WAL 模式实现持久化与崩溃自愈。 |
+#### 2. 接下游大模型端到端问答参考（非官方榜单跑分）
 
-#### 数据写入规范 (`add_turn` / `batch_add_turns`)
+| 记忆底座 + 答题模型 | 裁判模型 | 500 题准确率 | 单题平均输入 Token | 说明 |
+| :--- | :---: | :---: | :---: | :--- |
+| **Funes 公开版 + `Qwen/Qwen3.5-4B`** | `glm-5.3-flash` | **70.40%** (352/500) | **~4,815** | 4B 端侧小模型（关闭思考），零关键词调优 |
+| HLM V1.6.0 + `Qwen/Qwen3.5-4B` (V2) | `DeepSeek-V4.1-Flash` | 64.80% (324/500) | ~8,743 | 历史版本对照 |
+| HLM V1.6.0 + `Qwen/Qwen3.5-4B` (V1) | `DeepSeek-V4.1-Flash` | 49.40% (247/500) | ~8,675 | 历史初始基线 |
+| Funes + `DeepSeek-V4.1-Flash`（论文） | `glm-5.3-flash` | 约 93.20% | — | 预印本云端大模型参考结果 |
 
-```python
-engine.add_turn(
-    session_id="session_001",  # 会话唯一标识符（隔离不同对话线）
-    date_str="2026-05-01",      # 对话发生日期（必须为 YYYY-MM-DD 格式）
-    role="user",                # 发言角色（'user' / 'assistant' / 'system'）
-    content="用户输入的具体对话内容...",
-    timestamp=0.0               # 可选：POSIX 时间戳浮点数
-)
-```
-
-#### 双流输出对象解析 (`DualStreamResult`)
-
-调用 `result = engine.retrieve(query, reference_date="YYYY-MM-DD")` 时返回：
-* `result.exact_facts`：**第一流（Stream 1）**事实锚点列表。由刚性生化探针通过严格边界断言捕获，包含确定性的日期、专有名词、确切数字等高信噪比事实。
-* `result.fuzzy_contexts`：**第二流（Stream 2）**拓扑泛化上下文。由柔性探针激发赫布突触共现网络捕获，经过表观遗传甲基化平方根衰减（抑制超高频噪声词）。
-* `result.latency_ms`：纯 CPU 本次检索耗时毫秒数（通常在 5 ~ 15 ms）。
-* `result.opened_blocks`：本次检索中通过染色质三维区室化激活打开的日历区块列表。
+> **声明**：以上端到端测试均使用第三方/开源模型进行独立对照实验，**未使用 LongMemEval 官方指定的标准评测模型（GPT-4o）**，因此不能直接等同于官方榜单排名，亦未上传至官方跑分榜，仅作工程与学术研究参考。
 
 ---
 
-### 🚢 生产级部署方案
+### 🛠️ 快速上手与复测
 
-#### 方案 A：作为模块直接内嵌至现有 Agent 项目中（最轻量推荐）
-直接将 `funes.py` 拷入你的项目代码库中，无需配置外部服务：
-```python
-from funes import FunesEngine
+无需 `pip install` 任何第三方依赖（需 Python 3.8+）：
 
-# 实例化引擎（内存或本地单文件）
-engine = FunesEngine(db_path="./agent_memory.db")
-
-# 1. 每次对话前，毫秒级获取相关长期记忆与组装 Prompt
-context_prompt = engine.build_prompt("用户提出的问题")
-
-# 2. 将 context_prompt 注入下游大模型调用中
-# response = client.chat.completions.create(...)
-
-# 3. 将新轮次对话沉淀至记忆中
-engine.add_turn("sess_1", "2026-11-04", "user", "用户提出的问题")
-engine.add_turn("sess_1", "2026-11-04", "assistant", "大模型的回答")
-```
-
-#### 方案 B：封装为独立 REST API 微服务（FastAPI）
-只需 20 行代码即可启动一个长期记忆中台：
-```python
-from fastapi import FastAPI
-from pydantic import BaseModel
-from funes import FunesEngine
-
-app = FastAPI(title="Funes 仿生长期记忆中枢")
-engine = FunesEngine(db_path="funes_production.db")
-
-class TurnItem(BaseModel):
-    session_id: str
-    date_str: str
-    role: str
-    content: str
-
-@app.post("/memory/append")
-def append_memory(item: TurnItem):
-    engine.add_turn(item.session_id, item.date_str, item.role, item.content)
-    return {"status": "success"}
-
-@app.get("/memory/search")
-def search_memory(query: str, ref_date: str = None):
-    res = engine.retrieve(query, reference_date=ref_date)
-    return {
-        "latency_ms": res.latency_ms,
-        "facts": [{"role": t.role, "text": t.content} for t, score, _ in res.exact_facts],
-        "contexts": [{"role": t.role, "text": t.content} for t, score, _ in res.fuzzy_contexts]
-    }
-```
-
-#### 方案 C：边缘与端侧离线设备部署
-由于 Funes 只有 **18.6 MB 内存占用且 0 依赖**，可直接部署在树莓派、工控板、智能音箱、车载端侧芯片甚至低配千元 VPS 上，完全离线运行，数据绝不出端，保证极致隐私。
-
----
-
-### 🧪 完整复测方法（Benchmark 验证）
-
-任何工程师均可在本地快速复测、验证白皮书指标的真实性：
-
-#### 步骤 1：确认纯净运行环境
 ```bash
-python --version
-# 仅需 Python 3.8+，不需要 pip 安装任何库！
-```
+# 运行快速示例与本地检索示例
+python examples/quickstart.py
+python examples/local_search.py
 
-#### 步骤 2：10 题快速冒烟复测（约 1.2 秒）
-```bash
-python benchmark.py --limit 10
-```
-控制台将输出精美的 ASCII 实时进度条与指标汇总。
+# 运行单元测试
+python -m unittest discover -s tests -v
 
-#### 步骤 3：500 题全量 LongMemEval-S 双盲复测（约 71 秒）
-确认 `data/longmemeval_s.json` 数据集文件就绪后，执行：
-```bash
-python benchmark.py
+# 复现 LongMemEval-S 基准测试（需按 data/README.md 放入 longmemeval_s.json）
+python benchmark.py --data data/longmemeval_s.json
 ```
-
-#### 步骤 4：指标校验对齐
-测试完成后，终端输出的最终汇总与论文白皮书 1:1 对齐：
-* **Any-Session Hit Rate（目标会话命中率）**: **97.80% (489/500)**
-* **Full-Session Recall（完整证据链全召回率）**: **92.00% (460/500)**
-* **Gold Substring Match（标准答案子串直接命中率）**: **81.60% (408/500)**
-* **总耗时**: **约 71.36 秒**（平均单题吞吐 7 ~ 9.5 题/秒）
 
 ---
 
-## 📜 Academic Citation & Preprint / 学术引用
+## 📜 Preprint Paper & Citation / 预印本论文与引用
 
-如果您在研究或工程落地中使用了 Funes / HLM 架构，欢迎引用官方预印本白皮书：
+- **Zenodo Open Access**: [https://zenodo.org/records/23921389](https://zenodo.org/records/23921389)
+- **DOI**: [https://doi.org/10.5281/zenodo.23921389](https://doi.org/10.5281/zenodo.23921389)
 
 ```bibtex
 @article{isalah2026funes,
@@ -381,43 +241,16 @@ python benchmark.py
   year      = {2026},
   month     = {November},
   doi       = {10.5281/zenodo.23921389},
-  url       = {https://doi.org/10.5281/zenodo.23921389}
+  url       = {https://zenodo.org/records/23921389}
 }
 ```
 
 ---
 
-## ⚖️ License & Intellectual Property / 许可证与知识产权
+## ⚖️ License & Contact / 开源协议与联系
 
-- **代码开源协议**: [Apache License 2.0](LICENSE)。允许商用、修改与私有化部署。
-- **防卫性公开 (Defensive Publication)**: 核心双流仿生拓扑检索流程与数学公式已依据 35 U.S.C. § 102 作为防卫性在先技术（Prior Art）在全球公开。
-- **商业秘密界定 (Trade Secrets Demarcation)**: 经验衰减指数参数矩阵（$\Psi$）、多租户并发动态 A/B 区室水化启发式规则，以及专有领域的离散特征碰撞抑制表，保留为作者（Sherris Isalah / 艾浩喆）受法律保护的商业秘密。
+- **License**: [Apache License 2.0](LICENSE) — free for commercial, research, and private edge deployment.
+- **Defensive Prior Art**: Core biomimetic four-stage pipeline disclosed openly as prior art alongside the Zenodo preprint (`10.5281/zenodo.23921389`).
+- **Author & Contact**: Sherris Isalah (艾浩喆) · `sherjia192@gmail.com`
 
----
-
-<a name="sponsorship"></a>
-## ☕ Sponsorship & Support / 赞助与打赏
-
-Funes 是一个**完全由独立创作者（Sherris Isalah / 艾浩喆）耗时数月、自费算力、纯粹凭借算法热爱雕琢完成的开源项目**。
-
-如果 Funes：
-- 💡 帮你的大模型 Agent 节省了昂贵的 GPU 显存或成千上万的 Token 账单；
-- ⚡ 让你的长程记忆检索延迟从数秒暴降至个位数毫秒；
-- 🧠 在算法和离散仿生架构上为你带来了一丝灵感与启发；
-
-欢迎考虑请作者喝杯咖啡或赞助后续算力电费，支持独立开发者的持续创作！
-
-<div align="center">
-
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-yellow.svg?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com)
-[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa.svg?style=for-the-badge&logo=github)](https://github.com/sponsors/sherris-isalah-GUTS)
-
-| 微信赞赏码 (WeChat Pay) | 支付宝打赏 (Alipay) |
-| :---: | :---: |
-| <img src="docs/wechat_pay.png" width="220" alt="微信赞赏码 (请将你的收款码放入 docs/wechat_pay.png)"/> | <img src="docs/alipay.png" width="220" alt="支付宝赞赏码 (请将你的收款码放入 docs/alipay.png)"/> |
-
-*（注：若需展示赞赏码图片，只需将你的微信/支付宝二维码图片命名为 `wechat_pay.png` 和 `alipay.png` 放入 `docs/` 文件夹中即可自动显示）*
-
-非常感谢每一位支持开源精神与独立思考的同行者！❤️
-
-</div>
+If you find Funes helpful for your agent or edge-AI project, feel free to leave a **Star**, open an **Issue / Pull Request**, or cite the Zenodo preprint!

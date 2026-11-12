@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "funes-memory"
+version = "1.0.0"
+description = "Zero-embedding, CPU-native biomimetic dual-stream long-term memory and edge search engine in pure Python standard library."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+authors = [
+    { name = "Sherris Isalah (艾浩喆)", email = "sherjia192@gmail.com" }
+]
+keywords = ["llm", "memory", "rag", "long-term-memory", "edge-ai", "bm25", "biomimetic"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/sherris-isalah-GUTS/funes"
+Repository = "https://github.com/sherris-isalah-GUTS/funes"
+Paper = "https://zenodo.org/records/23921389"
+DOI = "https://doi.org/10.5281/zenodo.23921389"
+
+[tool.setuptools]
+py-modules = ["funes"]
