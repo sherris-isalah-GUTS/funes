@@ -78,6 +78,17 @@ Evaluated across all 500 questions of LongMemEval-S with engine state reset betw
 
 ---
 
+### 💡 What Can You Build With Funes? (Use Cases)
+
+Because Funes is a **single-file, zero-dependency Python kernel** with SQLite WAL persistence and `0 MB` GPU VRAM overhead, it drops cleanly into existing LLM workflows:
+
+- **🧩 Edge & Local LLM Long-Term Memory**: Pair directly with local models deployed via Ollama, `llama.cpp`, vLLM, or LM Studio (e.g., 4B–8B edge models). Retrieval uses `0 MB` of GPU VRAM—leaving all memory for model weights—while compressing long histories into concise prompts (`~4,815` avg tokens in our `Qwen/Qwen3.5-4B` reference run).
+- **🤖 Drop-In AI Agent Tool / MCP Memory Backend**: Expose `FunesEngine` (`add_turn`, `retrieve`, `build_prompt`) as a `save_memory` / `recall_memory` tool for agent frameworks or MCP servers—just `from funes import FunesEngine` with a single local `.db` file, no Docker or external vector-DB stack required.
+- **💸 Prompt Token Saver for Cloud APIs**: Place Funes on CPU in front of cloud APIs (DeepSeek, GPT, Claude, etc.) for assistants, roleplay, or customer-support bots. Instead of stuffing huge chat histories into every API call, retrieve only relevant causal conversation snippets at `$0.00` retrieval cost.
+- **🔒 Offline & Privacy-First Knowledge Archives**: Run completely air-gapped on laptops, mini-PCs, or edge devices—ideal for private journals, local personal assistants, or searching across massive long-form drafts, worldbuilding notes, and character timelines.
+
+---
+
 ### 🧬 Biomimetic Architecture
 
 ```mermaid
@@ -186,6 +197,17 @@ Funes（内部代号 **HLM / Human-Like Memory**）是一套 **100% 纯 Python �
 - ❄️ **零显存 / 零检索 Token 费用**：建库与检索阶段均不调用大模型或向量模型（检索算力成本 `$0.00`）。
 - 🎯 **自然语言直接检索**：设计为**联想式记忆中枢**——使用时不建议手动改写问题或硬编码关键词，直接传入用户原生自然语言，由底层提取探针并组装双流上下文供大模型参考推理。
 - 🧪 **零作弊干净代码**：公开发布版 [`funes.py`](funes.py) 不含任何面向评测集特调的关键词词表。
+
+---
+
+### 💡 可以用来做什么？（典型应用场景）
+
+由于 [`funes.py`](funes.py) 本质上是一个 **纯标准库单文件引擎 + SQLite WAL 单文件存储**，不占显卡显存也不需要额外拉起向量数据库服务，非常适合直接当作底层组件嵌入各类系统：
+
+- **📱 端侧 / 本地部署大模型的长期记忆方案**：直接挂在 Ollama、`llama.cpp`、vLLM、LM Studio 部署的本地小模型（如 4B–8B）前面。检索阶段占用 `0 MB` 显存，不和推理抢 GPU 资源，又能把漫长历史对话浓缩成高信噪比上下文（例如我们实测接 `Qwen/Qwen3.5-4B` 时单题平均仅约 `4,815` tokens 即可跑出 `70.40%` 准确率）。
+- **🤖 外挂为 AI Agent 工具 / MCP 记忆后端**：可以把 `FunesEngine` 的 `add_turn`、`retrieve`、`build_prompt` 直接封装成 Agent 的 `save_memory` / `recall_memory` 函数调用工具，或作为 MCP Server 的本地记忆库——一行 `from funes import FunesEngine` 就能跑，不用维护 Docker 和向量库集群。
+- **💰 云端大模型对话省 Token 降本**：在调用商业 API（DeepSeek、GPT、Claude 等）的个人助理、陪伴或客服系统前充当零成本 CPU 预筛选器，避免每次对话都把几十万字全量历史硬塞进窗口导致账单爆炸。
+- **🔒 纯离线、重隐私的本地资料与设定库检索**：全程不联网、不调外部 Embedding 接口、数据全留在本地 `.db` 文件中——适合个人私密笔记/日记助手、低配边缘设备，以及长篇创作中的人物设定、伏笔与时间线秒级召回。
 
 ---
 
