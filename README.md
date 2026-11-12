@@ -38,15 +38,19 @@
 <a name="english"></a>
 ## 🌐 English
 
-### ⚡ Highlights
+### ⚡ Highlights & Engineering Advantages
 
 Funes (internal codename **HLM / Human-Like Memory**) provides a CPU-native alternative to heavy vector databases and LLM-driven memory loops. Built with **100% pure Python standard library (zero external dependencies)**, Funes models long-term memory through calendar-partitioned chromatin blocks, Hebbian co-occurrence associations, and square-root document-frequency silencing.
 
-- 🚀 **~18.6 MB Resident RAM**: Compact in-memory or SQLite WAL footprint across long multi-session histories.
+- 🚀 **~18.6 MB Resident RAM & Ultra-Fast Ingestion**: Compact in-memory or SQLite WAL footprint (`add_turn` / `batch_add_turns` ingest via lightweight lexical/Hebbian updates with zero neural inference delay).
 - ❄️ **0 MB GPU VRAM & 0 Retrieval Tokens**: No embedding model weights, no LLM extraction/reflection loops during ingestion or search (`$0.00` retrieval cost).
-- ⚡ **Millisecond Retrieval**: Single-digit millisecond point lookups; full 500-question LongMemEval-S retrieval runs in roughly **~1–2 minutes** on standard CPUs (`~70–120 s` depending on hardware).
-- 🎯 **~98% Any-Session Hit Rate on LongMemEval-S**: Clean, zero-keyword public release achieves **~98%** Any-Session Hit Rate and **~92%** Full-Session Recall across all 500 questions.
-- 🛡️ **SQLite WAL Persistence**: Single-file storage with automatic metadata flush and fast cold reload.
+- 🎯 **Pure Natural-Language Associative Retrieval**: Feed unmodified user queries directly—no query rewriting or keyword engineering needed (`~98%` Any-Session Hit Rate & `~92%` Full-Session Recall on LongMemEval-S 500Q).
+- 📜 **Lossless Verbatim Storage & Verbatim Recall**: Stores and returns exact original turns with timestamps and roles—eliminating hallucination or detail loss caused by lossy LLM summarization.
+- 🔍 **Fully Auditable & Transparently Tunable**: Deterministic scoring across explicit probe hits, opened `DateBlock`s, Hebbian steps, and causal window/decay constants—every retrieved turn is traceable with zero black-box embeddings, and parameters are clean to tune.
+- 🗂️ **Structured Isolation (`session_id` / `date_str`)**: Indexed turn-level SQLite rows (`dna_turns`) avoid irreversible merged summaries or opaque vector graphs, making per-session/document-level isolation and cleanup straightforward to manage or extend.
+- 🔒 **100% Local & Privacy-First**: Runs strictly offline with single-file SQLite WAL persistence—no data ever leaves your machine.
+- 🌐 **Native EN/ZH Bilingual & Easy Script Extension**: `UniversalShingleTokenizer` natively handles English stems/shingles, Chinese 2-gram shingles, and mixed EN/ZH text, with simple regex hooks to extend to additional languages.
+- 🛠️ **Tiny Footprint, High Maintainability & C++-Ready**: The entire core engine lives in a single ~993-line [`funes.py`](funes.py) file; because it relies solely on string scanning, hash maps, and scalar scoring, porting it to **C++ or Rust** is straightforward and expected to slash retrieval latency even further.
 
 ---
 
@@ -189,13 +193,19 @@ python benchmark.py --data data/longmemeval_s.json
 <a name="中文说明"></a>
 ## 🇨🇳 中文说明
 
-### 🌟 核心特性与定位
+### 🌟 核心特性与工程优势
 
 Funes（内部代号 **HLM / Human-Like Memory**）是一套 **100% 纯 Python 标准库实现、零外部依赖** 的轻量化长期记忆检索与端侧搜索架构。它不依赖任何向量数据库或嵌入模型，而是利用“日历拓扑分区（DateBlock）＋ 赫布共现联想网络 ＋ 表观遗传高频词衰减 ＋ 非对称因果滑窗”，在普通 CPU 上毫秒级捞出记忆线索，交给大模型做参考。
 
-- 🚀 **极低内存占用**：常驻内存约 `~18.6 MB`，支持纯内存或单文件 SQLite WAL 持久化。
+- 🚀 **极低内存与极速写入**：常驻内存约 `~18.6 MB`；写入阶段（`add_turn` / `batch_add_turns`）仅做轻量分词、共现统计与 SQLite WAL 插入，不跑任何向量推理或大模型提取，吞吐极快。
 - ❄️ **零显存 / 零检索 Token 费用**：建库与检索阶段均不调用大模型或向量模型（检索算力成本 `$0.00`）。
-- 🎯 **自然语言直接检索**：设计为**联想式记忆中枢**——使用时不建议手动改写问题或硬编码关键词，直接传入用户原生自然语言，由底层提取探针并组装双流上下文供大模型参考推理。
+- 🎯 **纯自然语言联想检索**：设计为**联想式记忆中枢**——无需改写问题或拼接检索词，直接传入用户原生自然语言，即可结合多探针与赫布共现网络召回相关线索。
+- 📜 **原文写入、原文召回（零有损压缩）**：不做容易丢失细节或产生幻觉的“摘要改写”，SQLite 原文落盘、检索直接返回原始对话记录与精确日期角色信息。
+- 🔍 **极强可审计性与参数可调**：全链路确定性打分（可清晰回溯命中的探针词、激活的 `DateBlock` 日期块与权重衰减），告别向量空间黑箱；赫布步长、窗口边界、衰减系数等核心参数全部明文透明，极易按业务微调。
+- 🗂️ **按会话/文档结构化隔离**：底层 `dna_turns` 按 `session_id` 和 `date_str` 建索引存储（区别于合并摘要黑盒），天然支持按文档/会话精准定位、隔离与清理扩展。
+- 🔒 **纯本地存储与检索，隐私性极强**：纯内存或单文件 SQLite WAL 本地运行，数据不出本地机器，零外部网络请求。
+- 🌐 **原生支持中英双语且易扩多语言**：内置 `UniversalShingleTokenizer` 原生支持英文词干/shingle 与中文 2-gram 切分（及中英混排），只需补充字符集规则即可平滑扩展更多语种。
+- 🛠️ **体量极小、易维护、极适于转译 C++/Rust**：整套核心引擎仅一个约 **993 行**的 [`funes.py`](funes.py) 单文件；且算法本质只涉及字符串扫描、哈希表与标量运算，几乎零迁移阻碍地转译为 **C++ / Rust** 后，可预期检索延迟还会进一步大幅下降。
 - 🧪 **零作弊干净代码**：公开发布版 [`funes.py`](funes.py) 不含任何面向评测集特调的关键词词表。
 
 ---
