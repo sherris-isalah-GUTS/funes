@@ -175,6 +175,63 @@ You can also inspect [examples/local_search.py](examples/local_search.py), [test
 
 ---
 
+### 🎯 Deep Domain Adaptation & Specialized Terminology Tuning Guide
+
+The public release of Funes is intentionally configured with clean, unbiased standard-library rules to ensure zero dataset cheating for general academic benchmarks. When deploying Funes in specialized, high-barrier vertical domains (such as **visas/immigration, medicine, law, finance, or industrial engineering**), queries often feature **long multi-word technical compounds** (e.g., *"certificate of non-criminal record"* / *"无犯罪记录证明"*), **special-symbol codes** (e.g., `B1/B2`, `DS-160`, `214(b)`), and **industry slang/synonyms** (e.g., *"consular interview"* ↔ *"visa interview"*).
+
+You can easily adapt Funes to deep vertical domains **without modifying a single line of internal engine code** using the following zero-overhead strategies:
+
+#### 1. Cold-Start Synaptic Seeding (Recommended — Pure Conversation Turns)
+Funes models human-like Hebbian associative memory: concepts that co-occur in the same conversational turn automatically form strong synaptic links. You can inject domain knowledge and synonyms simply by ingesting 1–2 background glossary turns during system setup:
+
+```python
+# Ingest domain terminology mappings as background seed turns
+engine.add_turn(
+    session_id="system_knowledge_seed",
+    date_str="2026-01-01",
+    role="system",
+    content=(
+        "DS-160 is the online nonimmigrant visa application form. "
+        "B1/B2 visa consular interview is commonly referred to as visa interview or in-person interview. "
+        "Administrative processing 221(g) is known as check. "
+        "Police clearance certificate is also called certificate of non-criminal record."
+    )
+)
+```
+*How it works*: Funes automatically wires strong associative synaptic edges (`adj[token_a][token_b]`) between these terms. When a user asks *"Has the DS-160 been submitted before the visa interview?"*, the associative stream instantly fires and recalls historical records that used *"consular interview"* without needing an LLM loop.
+
+#### 2. Direct Pre-population of the SQLite `associations` Synapse Table
+For enterprise systems with pre-existing domain dictionaries or synonym graphs, you can batch-insert domain associations directly into Funes's native SQLite table (`associations`):
+
+```python
+import sqlite3, time
+
+# Connect to the persistent Funes SQLite database
+conn = sqlite3.connect("./agent_memory.db")
+cur = conn.cursor()
+
+# Insert domain synonym pairs with prior associative weight (e.g., 2.5 - 3.5)
+domain_pairs = [
+    ("面签", "领事馆面试", 3.0),
+    ("check", "行政审查", 3.0),
+    ("资金证明", "银行流水", 2.5),
+    ("i20", "录取证明", 2.5)
+]
+
+now_ts = time.time()
+for a, b, weight in domain_pairs:
+    cur.execute("INSERT OR REPLACE INTO associations (a_token, b_token, weight, last_used) VALUES (?, ?, ?, ?)", (a, b, weight, now_ts))
+    cur.execute("INSERT OR REPLACE INTO associations (a_token, b_token, weight, last_used) VALUES (?, ?, ?, ?)", (b, a, weight, now_ts))
+
+conn.commit()
+conn.close()
+```
+
+#### 3. Surface-Level Symbol Normalization
+Standard lexical tokenizers split on punctuation marks like `/` and `()`. For domain acronyms featuring symbols (`B1/B2` → `B1B2` or `B1_B2`, `214(b)` → `214b`), applying a simple 2-line regex replacement or dictionary mapping before calling `engine.add_turn` and `engine.retrieve` keeps them intact as atomic, high-priority rigid probes.
+
+---
+
 ### 🧪 Reproducing the Retrieval Benchmark
 
 1. Place `longmemeval_s.json` under `data/longmemeval_s.json` (see [data/README.md](data/README.md)).
@@ -257,6 +314,68 @@ python -m unittest discover -s tests -v
 # 复现 LongMemEval-S 基准测试（需按 data/README.md 放入 longmemeval_s.json）
 python benchmark.py --data data/longmemeval_s.json
 ```
+
+---
+
+### 🎯 深度垂直领域专业词汇特调指导 (Domain Adaptation Guide)
+
+Funes 公开版本为了严格保证学术基准评测（如 LongMemEval-S 500 题）的公信力，杜绝任何针对特定评测集的人工调优与作弊嫌疑，采用了通用、无偏的纯标准库规则。
+
+当在**签证移民、法律合同、临床医疗、金融审计或工业工程**等高壁垒垂直领域落地时，用户输入往往包含大量**长复合专业词**（如“无犯罪记录证明”）、**带特殊符号的代码**（如 `B1/B2`、`DS-160`、`214(b)`）以及**行业行话/同义词**（如“面签” ↔ “领馆面试”、“check” ↔ “行政审查”）。
+
+得益于 Funes 100% 透明的白盒架构，企业与开发者**无需修改底层任何代码**，即可通过以下三种策略完成即插即用的领域特调：
+
+#### 策略 1：冷启动知识注入（推荐 —— 纯对话轮次即可完成）
+Funes 具备人类记忆般的赫布共现特性（在同一对话轮次中共同出现的词汇，会自动拉起强突触关联）。系统部署或冷启动时，只需在后台作为背景轮次写入 1~2 条行业术语对照说明：
+
+```python
+from funes import FunesEngine
+
+engine = FunesEngine(db_path="./agent_memory.db")
+
+# 写入行业背景知识或同义词映射
+engine.add_turn(
+    session_id="system_domain_seed",
+    date_str="2026-01-01",
+    role="system",
+    content=(
+        "DS-160是非移民签证在线申请表；"
+        "B1/B2签证领事馆面试通常被称为面签或面谈；"
+        "行政审查221(g)在行业内被称为check或被check；"
+        "无犯罪记录证明也称为未受刑事处分公证书。"
+    )
+)
+```
+*原理解析*：Funes 会立刻在这些词汇之间建立起强突触边（Hebbian Synapses）。之后即使客户提问说“面签需要带什么”，底层第二记忆流也会自然联想并共振召回包含“领事馆面试”的历史记录，完全不需要下游大模型额外做查询改写！
+
+#### 策略 2：直接向 SQLite `associations` 突触表批量导入行业词库
+对于已有专业术语表或同义词图谱的企业，可以直接利用 Funes 原生 SQLite 中的 `associations (a_token, b_token, weight, last_used)` 表进行批量注入：
+
+```python
+import sqlite3, time
+
+conn = sqlite3.connect("./agent_memory.db")
+cur = conn.cursor()
+
+# 领域同义词/关联对及先验突触权重（建议 2.5 ~ 3.5）
+domain_pairs = [
+    ("面签", "领事馆面试", 3.0),
+    ("check", "行政审查", 3.0),
+    ("资金证明", "银行流水", 2.5),
+    ("i20", "录取证明", 2.5)
+]
+
+now_ts = time.time()
+for a, b, weight in domain_pairs:
+    cur.execute("INSERT OR REPLACE INTO associations (a_token, b_token, weight, last_used) VALUES (?, ?, ?, ?)", (a, b, weight, now_ts))
+    cur.execute("INSERT OR REPLACE INTO associations (a_token, b_token, weight, last_used) VALUES (?, ?, ?, ?)", (b, a, weight, now_ts))
+
+conn.commit()
+conn.close()
+```
+
+#### 策略 3：浅层符号归一化（保留特殊代码完整性）
+通用分词器在遇到 `/` 或 `()` 等符号时会天然切断。若领域内存在大量形如 `B1/B2`、`214(b)` 的代码，建议在写入与检索前加入一行极简的正则归一化（如 `re.sub(r'(\w+)/(\w+)', r'\1\2', text)`，将 `B1/B2` 映射为 `B1B2`），即可确保作为高优先级硬探针一击即中。
 
 ---
 
