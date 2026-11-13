@@ -50,7 +50,7 @@ Funes (internal codename **HLM / Human-Like Memory**) provides a CPU-native alte
 - 🗂️ **Structured Isolation (`session_id` / `date_str`)**: Indexed turn-level SQLite rows (`dna_turns`) avoid irreversible merged summaries or opaque vector graphs, making per-session/document-level isolation and cleanup straightforward to manage or extend.
 - 🔒 **100% Local & Privacy-First**: Runs strictly offline with single-file SQLite WAL persistence—no data ever leaves your machine.
 - 🌐 **Native EN/ZH Bilingual & Easy Script Extension**: `UniversalShingleTokenizer` natively handles English stems/shingles, Chinese 2-gram shingles, and mixed EN/ZH text, with simple regex hooks to extend to additional languages.
-- 🛠️ **Tiny Footprint, High Maintainability & C++-Ready**: The entire core engine lives in a single ~993-line [`funes.py`](funes.py) file; because it relies solely on string scanning, hash maps, and scalar scoring, porting it to **C++ or Rust** is straightforward and expected to slash retrieval latency even further.
+- 🛠️ **Tiny Footprint, High Maintainability & C++-Ready**: The entire core engine lives in a single ~1,000-line [`funes.py`](funes.py) file (~650 lines of core logic without comments/docstrings); because it relies solely on string scanning, hash maps, and scalar scoring, porting it to **C++ or Rust** is straightforward and expected to slash retrieval latency even further.
 
 ---
 
@@ -262,7 +262,7 @@ Funes（内部代号 **HLM / Human-Like Memory**）是一套 **100% 纯 Python �
 - 🗂️ **按会话/文档结构化隔离**：底层 `dna_turns` 按 `session_id` 和 `date_str` 建索引存储（区别于合并摘要黑盒），天然支持按文档/会话精准定位、隔离与清理扩展。
 - 🔒 **纯本地存储与检索，隐私性极强**：纯内存或单文件 SQLite WAL 本地运行，数据不出本地机器，零外部网络请求。
 - 🌐 **原生支持中英双语且易扩多语言**：内置 `UniversalShingleTokenizer` 原生支持英文词干/shingle 与中文 2-gram 切分（及中英混排），只需补充字符集规则即可平滑扩展更多语种。
-- 🛠️ **体量极小、易维护、极适于转译 C++/Rust**：整套核心引擎仅一个约 **993 行**的 [`funes.py`](funes.py) 单文件；且算法本质只涉及字符串扫描、哈希表与标量运算，几乎零迁移阻碍地转译为 **C++ / Rust** 后，可预期检索延迟还会进一步大幅下降。
+- 🛠️ **体量极小、易维护、极适于转译 C++/Rust**：整套核心引擎仅一个约千行的 [`funes.py`](funes.py) 单文件（剔除文档注释后核心算法逻辑仅约 650 行）；且算法本质只涉及字符串扫描、哈希表与标量运算，几乎零迁移阻碍地转译为 **C++ / Rust** 后，可预期检索延迟还会进一步大幅下降。
 - 🧪 **零作弊干净代码**：公开发布版 [`funes.py`](funes.py) 不含任何面向评测集特调的关键词词表。
 
 ---
@@ -402,7 +402,7 @@ conn.close()
 
 - **Open-Source License ([GNU AGPLv3 / AGPL-3.0](LICENSE))**: Free for personal, academic, research, and open-source use under the terms of the GNU Affero General Public License v3.0. In accordance with AGPL-3.0, any modified version or derivative work—including **network/SaaS deployments**—must disclose its full source code under AGPL-3.0 and retain original attribution.
 - **Commercial / Closed-Source Licensing（商业闭源双授权）**: If you wish to embed Funes into a proprietary closed-source product, commercial OEM firmware, or hosted commercial API without AGPL-3.0 source-disclosure obligations, please contact **`sherjia192@gmail.com`** for a commercial license.
-- **Defensive Prior Art**: Core biomimetic four-stage pipeline disclosed openly as prior art alongside the Zenodo preprint (`10.5281/zenodo.23921389`).
+- **Defensive Prior Art & Software Demarcation**: Abstract mathematical concepts and architecture are disclosed openly as defensive prior art alongside the Zenodo preprint (`10.5281/zenodo.23921389`) to prevent restrictive third-party patents, while software reference implementations (`funes.py`) remain strictly governed by GNU AGPL-3.0 and Commercial Dual-Licensing.
 - **Author & Contact**: Sherris Isalah (艾浩喆) · `sherjia192@gmail.com`
 
 If you find Funes helpful for your agent or edge-AI project, feel free to leave a **Star**, open an **Issue / Pull Request**, or cite the Zenodo preprint!

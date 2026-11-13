@@ -104,10 +104,11 @@ class UniversalShingleTokenizer:
         """Extract normalized English tokens and Chinese 2-gram shingles."""
         if not text:
             return []
-        has_zh = bool(re.search(r"[\u4e00-\u9fa5]", text))
+        text_clean = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text)
+        has_zh = bool(re.search(r"[\u4e00-\u9fa5]", text_clean))
         kws = []
 
-        for w in re.findall(r"(?<![A-Za-z0-9])[a-zA-Z0-9\-\'\$]{2,}(?![A-Za-z0-9])", text):
+        for w in re.findall(r"(?<![A-Za-z0-9])[a-zA-Z0-9\-\'\$]{2,}(?![A-Za-z0-9])", text_clean):
             wl = w.lower()
             if wl not in STOP_WORDS and wl not in kws:
                 kws.append(wl)
@@ -117,7 +118,7 @@ class UniversalShingleTokenizer:
                             kws.append(sub)
 
         if has_zh:
-            for run in re.findall(r"[\u4e00-\u9fa5]+", text):
+            for run in re.findall(r"[\u4e00-\u9fa5]+", text_clean):
                 if len(run) == 1:
                     continue
                 elif len(run) == 2:
@@ -324,7 +325,9 @@ class Transducer:
         months_map = {
             "january": 1, "february": 2, "march": 3, "april": 4,
             "may": 5, "june": 6, "july": 7, "august": 8,
-            "september": 9, "october": 10, "november": 11, "december": 12,
+            "september": 9, "october": 10, "november": 11, "december": 12
+        }
+        zh_months_map = {
             "一月": 1, "二月": 2, "三月": 3, "四月": 4,
             "五月": 5, "六月": 6, "七月": 7, "八月": 8,
             "九月": 9, "十月": 10, "十一月": 11, "十二月": 12
@@ -337,16 +340,22 @@ class Transducer:
                 remo_signal["target_months"].append(f"{m_idx:02d}")
         else:
             for m_name, m_num in months_map.items():
-                if m_name in q_low:
+                if re.search(r"\b" + m_name + r"\b", q_low):
                     remo_signal["target_months"].append(f"{m_num:02d}")
+            for m_match in re.findall(r"(?:十一|十二|[一二三四五六七八九十])月", query):
+                if m_match in zh_months_map:
+                    remo_signal["target_months"].append(f"{zh_months_map[m_match]:02d}")
+
+        remo_signal["target_months"] = sorted(list(set(remo_signal["target_months"])))
 
         gu_probes = set()
-        for w in re.findall(r"(?<![A-Za-z0-9])[A-Z][a-z0-9\-\'\$]{2,}(?![A-Za-z0-9])", query):
+        q_clean = re.sub(r"(?<=\d),(?=\d{3}\b)", "", query)
+        for w in re.findall(r"(?<![A-Za-z0-9])[A-Z][a-z0-9\-\'\$]{2,}(?![A-Za-z0-9])", q_clean):
             wl = w.lower()
             if wl not in STOP_WORDS:
                 gu_probes.add(wl)
 
-        for w in re.findall(r"(?<![A-Za-z0-9])\d+[\.\d]*\s*(?:[a-zA-Z%]+|\$)?(?![A-Za-z0-9])|\$\d+[\.\d]*", query):
+        for w in re.findall(r"(?<![A-Za-z0-9])\d+[\.\d]*\s*(?:[a-zA-Z%]+|\$)?(?![A-Za-z0-9])|\$\d+[\.\d]*", q_clean):
             wl = w.lower().strip()
             if len(wl) >= 2 and wl not in STOP_WORDS and not wl.isdigit():
                 gu_probes.add(wl)
@@ -502,6 +511,9 @@ class DNAMemoryStore:
             self.blocks[norm_date] = DateBlock(date_str=norm_date, is_open=True)
 
         block = self.blocks[norm_date]
+        if self._conn and not block.is_open and block.turn_count > 0 and not block.turns:
+            self.load_active_turns(block)
+
         local_idx = len(block.turns) if block.is_open else block.turn_count
         turn_id = len(self.all_turns)
 
@@ -527,7 +539,7 @@ class DNAMemoryStore:
         self.hebbian_net.reinforce_turn(tokens)
 
         block.turns.append(t)
-        block.turn_count = max(block.turn_count, len(block.turns))
+        block.turn_count = max(block.turn_count, local_idx + 1)
 
         for tok in tokens:
             for s in UniversalShingleTokenizer.get_shingles(tok):
@@ -803,18 +815,19 @@ class MolecularSoup:
 
         for turn_id, turn in seen_turns.items():
             content_low = turn.content.lower()
+            content_norm = re.sub(r"(?<=\d),(?=\d{3}\b)", "", content_low)
 
             gu_hit_score = 0.0
             gu_hit_probes = []
             for probe in gu_probes:
                 is_cn = any("\u4e00" <= ch <= "\u9fa5" for ch in probe)
                 if is_cn:
-                    hit = probe in content_low
+                    hit = probe in content_low or probe in content_norm
                 else:
                     probe_stem = probe.rstrip("s") if len(probe) >= 4 else probe
                     hit = bool(
-                        re.search(r"(?<![A-Za-z0-9])" + re.escape(probe) + r"(?![A-Za-z0-9])", content_low) or
-                        (len(probe) >= 4 and re.search(r"(?<![A-Za-z0-9])" + re.escape(probe_stem) + r"s?(?![A-Za-z0-9])", content_low))
+                        re.search(r"(?<![A-Za-z0-9])" + re.escape(probe) + r"(?![A-Za-z0-9])", content_norm) or
+                        (len(probe) >= 4 and re.search(r"(?<![A-Za-z0-9])" + re.escape(probe_stem) + r"s?(?![A-Za-z0-9])", content_norm))
                     )
                 if hit:
                     gu_hit_score += 5.0
@@ -830,13 +843,13 @@ class MolecularSoup:
             for probe in mi_probes:
                 is_cn = any("\u4e00" <= ch <= "\u9fa5" for ch in probe)
                 if is_cn:
-                    hit = probe in content_low
+                    hit = probe in content_low or probe in content_norm
                 else:
                     probe_stem = probe.rstrip("s") if len(probe) >= 4 else probe
                     hit = bool(
-                        (probe in content_low) or
-                        (len(probe) >= 4 and probe_stem in content_low) or
-                        (len(probe) == 4 and re.search(r"(?<![A-Za-z0-9])" + re.escape(probe), content_low))
+                        (probe in content_norm) or
+                        (len(probe) >= 4 and probe_stem in content_norm) or
+                        (len(probe) == 4 and re.search(r"(?<![A-Za-z0-9])" + re.escape(probe), content_norm))
                     )
                 if hit and probe not in gu_probes:
                     mi_hit_score += 2.0
