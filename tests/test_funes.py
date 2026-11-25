@@ -2,10 +2,12 @@
 """Unit tests for the pure-stdlib Funes dual-stream memory engine."""
 
 import os
+import sqlite3
 import tempfile
+import time
 import unittest
 
-from funes import FunesEngine, UniversalShingleTokenizer
+from funes import FunesEngine, Transducer, UniversalShingleTokenizer
 
 
 class TestFunesEngine(unittest.TestCase):
@@ -117,6 +119,92 @@ class TestFunesEngine(unittest.TestCase):
         res = engine.retrieve("What did I buy for $2,499?", reference_date="2026-05-15")
         self.assertGreater(len(res.exact_facts), 0)
         self.assertTrue(any("$2,499" in t.content for t, _, _ in res.exact_facts))
+        engine.close()
+
+    def test_long_turn_not_truncated_beyond_16_keywords(self):
+        engine = FunesEngine()
+        long_prefix = " ".join(f"fillerword{i}" for i in range(25))
+        engine.add_turn("s1", "2026-05-01", "assistant", f"{long_prefix} secret_isotope_xenon133 confirmed.")
+        res = engine.retrieve("What happened with secret_isotope_xenon133?", reference_date="2026-05-05")
+        self.assertTrue(any("xenon133" in t.content for t, _, _ in res.exact_facts))
+        engine.close()
+
+    def test_pure_temporal_query_returns_turns(self):
+        engine = FunesEngine()
+        engine.add_turn("t1", "2026-05-12", "user", "Went hiking in the mountains.")
+        engine.add_turn("t2", "2026-05-01", "user", "Visited the museum exhibit.")
+
+        res_ago = engine.retrieve("What did I do 3 days ago?", reference_date="2026-05-15")
+        combined_ago = [t.content for t, _, _ in (res_ago.exact_facts + res_ago.fuzzy_contexts)]
+        self.assertTrue(any("mountains" in c for c in combined_ago))
+
+        res_may = engine.retrieve("What did I do in May?", reference_date="2026-06-01")
+        combined_may = [t.content for t, _, _ in (res_may.exact_facts + res_may.fuzzy_contexts)]
+        self.assertTrue(any("museum" in c for c in combined_may))
+        engine.close()
+
+    def test_da_qian_tian_and_cross_year_month_range(self):
+        sig_dqt = Transducer.transduce("我大前天买了什么？", reference_date="2026-05-15")["remo_signal"]
+        self.assertEqual(sig_dqt["target_ago_days"], 3)
+
+        sig_range = Transducer.transduce("What happened from November to February?")["remo_signal"]
+        self.assertEqual(sig_range["target_months"], ["01", "02", "11", "12"])
+
+    def test_double_s_stemming_and_mi_word_boundaries(self):
+        engine = FunesEngine()
+        engine.add_turn("s1", "2026-05-01", "user", "I visited the company apartment in Japan.")
+        engine.add_turn("s2", "2026-05-02", "user", "The boarding pass was ready.")
+
+        res = engine.retrieve("Did I get the pass?", reference_date="2026-05-05")
+        exact_texts = [t.content for t, _, _ in res.exact_facts]
+        fuzzy_texts = [t.content for t, _, _ in res.fuzzy_contexts]
+        self.assertTrue(any("boarding pass" in c for c in exact_texts))
+        self.assertFalse(any("company apartment" in c for c in exact_texts + fuzzy_texts))
+        engine.close()
+
+    def test_sqlite_hebbian_persists_without_close(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "funes_crash.db")
+            eng1 = FunesEngine(db_path=db_path)
+            eng1.add_turn("s1", "2026-05-01", "user", "My favorite espresso uses ethiopian yirgacheffe beans.")
+            eng1.store._conn.close()
+            eng1.store._conn = None
+
+            eng2 = FunesEngine(db_path=db_path)
+            self.assertEqual(eng2.store.hebbian_net.total_turns, 1)
+            self.assertIn("yirgacheffe", eng2.store.hebbian_net.adj.get("espresso", {}))
+            eng2.close()
+
+    def test_chinese_seeded_association_and_role_tags(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "funes_seed.db")
+            eng = FunesEngine(db_path=db_path)
+            eng.add_turn("s1", "2026-05-01", "system", "下周二需要前往美国领事馆面试。")
+            eng.close()
+
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "INSERT OR REPLACE INTO associations (a_token, b_token, weight, last_used) VALUES (?, ?, ?, ?)",
+                ("面签", "领事馆面试", 3.0, time.time())
+            )
+            conn.commit()
+            conn.close()
+
+            eng2 = FunesEngine(db_path=db_path)
+            res = eng2.retrieve("面签需要准备什么？", reference_date="2026-05-02")
+            combined = [t.content for t, _, _ in (res.exact_facts + res.fuzzy_contexts)]
+            self.assertTrue(any("领事馆面试" in c for c in combined))
+            prompt = eng2.build_prompt("面签需要准备什么？", result=res, reference_date="2026-05-02")
+            self.assertIn("[2026-05-01 | System]", prompt)
+            eng2.close()
+
+    def test_causal_bubble_neighbor_context_retained(self):
+        engine = FunesEngine()
+        engine.add_turn("s1", "2026-05-01", "user", "I decided on the MacBook Pro today.")
+        engine.add_turn("s1", "2026-05-01", "assistant", "Nice! It cost $2,499 at the downtown store.")
+        res = engine.retrieve("What did I decide on about the MacBook Pro?", reference_date="2026-05-05")
+        combined = [t.content for t, _, _ in (res.exact_facts + res.fuzzy_contexts)]
+        self.assertTrue(any("$2,499" in c for c in combined))
         engine.close()
 
 

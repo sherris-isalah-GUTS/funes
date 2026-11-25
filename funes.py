@@ -20,6 +20,8 @@ import sqlite3
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+__version__ = "1.1.0"
+
 STOP_WORDS: Set[str] = {
     "the", "a", "an", "is", "are", "was", "were", "to", "in", "on", "of", "and", "or",
     "it", "i", "you", "my", "your", "for", "with", "at", "by", "this", "that", "do",
@@ -29,6 +31,21 @@ STOP_WORDS: Set[str] = {
     "just", "like", "get", "got", "know", "think", "tell", "say", "said", "from",
     "as", "up", "out", "if", "all", "also", "into", "than", "very"
 }
+
+
+def _stem_plural(word: str) -> str:
+    """Strip a single trailing plural 's' without mangling words ending in ss/us/is."""
+    if len(word) >= 4 and word.endswith("s") and not word.endswith(("ss", "us", "is")):
+        return word[:-1]
+    return word
+
+
+def _is_cjk(text: str) -> bool:
+    """Return True if text contains any CJK Unified Ideograph."""
+    for ch in text:
+        if "\u4e00" <= ch <= "\u9fa5":
+            return True
+    return False
 
 
 def normalize_date_key(raw_date: Any) -> str:
@@ -70,6 +87,7 @@ class DateBlock:
     turns: List[Turn] = field(default_factory=list)
     turn_count: int = 0
     exposed_vocab: Dict[str, List[int]] = field(default_factory=lambda: defaultdict(list))
+    prefix4: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
     is_open: bool = False
 
 
@@ -100,59 +118,76 @@ class UniversalShingleTokenizer:
     ZH_STOPS = set("的了我你他在是有这那个就都要会什么哪去与及从和对把让被于以使得可以帮请问怎么谁何")
 
     @classmethod
-    def extract_keywords(cls, text: str, max_kws: int = 16) -> List[str]:
+    def extract_keywords(cls, text: str, max_kws: Optional[int] = 16) -> List[str]:
         """Extract normalized English tokens and Chinese 2-gram shingles."""
         if not text:
             return []
         text_clean = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text)
         has_zh = bool(re.search(r"[\u4e00-\u9fa5]", text_clean))
-        kws = []
+        kws: List[str] = []
+        seen: Set[str] = set()
 
-        for w in re.findall(r"(?<![A-Za-z0-9])[a-zA-Z0-9\-\'\$]{2,}(?![A-Za-z0-9])", text_clean):
-            wl = w.lower()
-            if wl not in STOP_WORDS and wl not in kws:
-                kws.append(wl)
+        def _add_kw(tok: str):
+            if tok not in seen:
+                seen.add(tok)
+                kws.append(tok)
+
+        for w in re.findall(r"(?<![A-Za-z0-9])(?:\$?\d+(?:\.\d+)+|[a-zA-Z0-9\-\'\$]{2,})(?![A-Za-z0-9])", text_clean):
+            wl = re.sub(r"^[\-\']+|[\-\'\$]+$", "", w.lower())
+            if wl.startswith("$") and (len(wl) < 2 or not wl[1].isdigit()):
+                wl = wl.lstrip("$")
+            if len(wl) < 2 or not any(ch.isalnum() for ch in wl):
+                continue
+            if wl not in STOP_WORDS:
+                _add_kw(wl)
                 if "-" in wl:
                     for sub in wl.split("-"):
-                        if len(sub) >= 2 and sub not in STOP_WORDS and sub not in kws:
-                            kws.append(sub)
+                        sub_clean = sub.strip("'$")
+                        if len(sub_clean) >= 2 and sub_clean not in STOP_WORDS:
+                            _add_kw(sub_clean)
 
         if has_zh:
             for run in re.findall(r"[\u4e00-\u9fa5]+", text_clean):
                 if len(run) == 1:
                     continue
                 elif len(run) == 2:
-                    if run[0] not in cls.ZH_STOPS and run[1] not in cls.ZH_STOPS and run not in kws:
-                        kws.append(run)
+                    if run[0] not in cls.ZH_STOPS and run[1] not in cls.ZH_STOPS:
+                        _add_kw(run)
                 elif len(run) == 3:
-                    if run not in cls.ZH_STOPS and run not in kws:
-                        kws.append(run)
+                    if sum(ch not in cls.ZH_STOPS for ch in run) >= 2:
+                        _add_kw(run)
                     for i in range(2):
                         bg = run[i:i + 2]
-                        if bg[0] not in cls.ZH_STOPS and bg[1] not in cls.ZH_STOPS and bg not in kws:
-                            kws.append(bg)
+                        if bg[0] not in cls.ZH_STOPS and bg[1] not in cls.ZH_STOPS:
+                            _add_kw(bg)
                 else:
                     for i in range(len(run) - 1):
                         bg = run[i:i + 2]
-                        if bg[0] not in cls.ZH_STOPS and bg[1] not in cls.ZH_STOPS and bg not in kws:
-                            kws.append(bg)
+                        if bg[0] not in cls.ZH_STOPS and bg[1] not in cls.ZH_STOPS:
+                            _add_kw(bg)
 
-        return kws[:max_kws]
+        return kws if max_kws is None else kws[:max_kws]
 
     @classmethod
     def get_shingles(cls, word: str) -> List[str]:
         """Generate morphological stem and prefix shingles for fuzzy alignment."""
-        shingles = [word]
-        is_cn = any("\u4e00" <= ch <= "\u9fa5" for ch in word)
-        if not is_cn:
-            clean = re.sub(r"\'s?$", "", word)
-            if clean != word and len(clean) >= 2:
-                shingles.append(clean)
-            if len(clean) >= 4:
-                shingles.append(clean[:4])
-            if clean.endswith("s") and len(clean) >= 4:
-                shingles.append(clean.rstrip("s"))
-        return list(set(shingles))
+        if _is_cjk(word):
+            return [word]
+        shingles = {word}
+        if word.endswith("'s"):
+            clean = word[:-2]
+        elif word.endswith("'"):
+            clean = word[:-1]
+        else:
+            clean = word
+        if clean != word and len(clean) >= 2:
+            shingles.add(clean)
+        if len(clean) >= 4:
+            shingles.add(clean[:4])
+        stemmed = _stem_plural(clean)
+        if stemmed != clean:
+            shingles.add(stemmed)
+        return list(shingles)
 
 
 extract_keywords = UniversalShingleTokenizer.extract_keywords
@@ -169,29 +204,47 @@ class HebbianAssociationNetwork:
         self.doc_freq: Dict[str, int] = defaultdict(int)
         self.total_turns: int = 0
 
+    def _reinforce_turn_delta(
+        self,
+        tokens: List[str],
+        track_edges: bool = False
+    ) -> Tuple[List[Tuple[str, str, float]], List[str]]:
+        """Strengthen co-occurrence edges for a turn and return updated edges and unique tokens."""
+        unique_tokens = list(dict.fromkeys(tokens))
+        updated_edges: List[Tuple[str, str, float]] = []
+        self.total_turns += 1
+        doc_freq = self.doc_freq
+        for t in unique_tokens:
+            doc_freq[t] += 1
+
+        # Cap Hebbian edge wiring on very long turns so ingestion stays fast while exposed_vocab keeps all tokens.
+        hebbian_tokens = unique_tokens if len(unique_tokens) <= 48 else unique_tokens[:48]
+        n = len(hebbian_tokens)
+        if n < 2:
+            return updated_edges, unique_tokens
+
+        adj = self.adj
+        step = self.step
+        max_weight = self.max_weight
+        max_span = n if n <= 20 else 8
+        for i in range(n):
+            ti = hebbian_tokens[i]
+            adj_i = adj[ti]
+            j_end = min(n, i + max_span)
+            for j in range(i + 1, j_end):
+                tj = hebbian_tokens[j]
+                w_ij = adj_i[tj] + step
+                if w_ij > max_weight:
+                    w_ij = max_weight
+                adj_i[tj] = w_ij
+                adj[tj][ti] = w_ij
+                if track_edges:
+                    updated_edges.append((ti, tj, w_ij))
+        return updated_edges, unique_tokens
+
     def reinforce_turn(self, tokens: List[str]):
         """Strengthen pairwise edge weights for co-occurring tokens in a turn."""
-        unique_tokens = list(set(tokens))
-        if len(unique_tokens) < 2:
-            for t in unique_tokens:
-                self.doc_freq[t] += 1
-            self.total_turns += 1
-            return
-
-        self.total_turns += 1
-        for t in unique_tokens:
-            self.doc_freq[t] += 1
-
-        n = len(unique_tokens)
-        for i in range(n):
-            ti = unique_tokens[i]
-            for j in range(i + 1, n):
-                tj = unique_tokens[j]
-                w_ij = self.adj[ti][tj] + self.step
-                if w_ij > self.max_weight:
-                    w_ij = self.max_weight
-                self.adj[ti][tj] = w_ij
-                self.adj[tj][ti] = w_ij
+        self._reinforce_turn_delta(tokens)
 
     def get_associated_probes(self, seed_keywords: List[str], top_k: int = 12) -> List[str]:
         """Traverse 1-hop synaptic neighbors with 8% DF cutoff and inverse sqrt decay."""
@@ -205,8 +258,9 @@ class HebbianAssociationNetwork:
         for seed in seeds_set:
             neighbors = self.adj.get(seed, {})
             if not neighbors and len(seed) >= 4:
+                seed_prefix = seed[:4]
                 for known_tok, n_dict in self.adj.items():
-                    if known_tok.startswith(seed[:4]) or seed.startswith(known_tok[:4]):
+                    if len(known_tok) >= 4 and known_tok[:4] == seed_prefix:
                         for nbr, w in n_dict.items():
                             if nbr not in seeds_set:
                                 df = self.doc_freq.get(nbr, 1)
@@ -293,12 +347,12 @@ class Transducer:
             remo_signal["target_ago_days"] = (
                 n if "天" in unit else (n * 7 if ("周" in unit or "星期" in unit) else (n * 30 if "月" in unit else n * 365))
             )
+        elif "大前天" in q_low:
+            remo_signal["target_ago_days"] = 3
         elif "day before yesterday" in q_low or "前天" in q_low:
             remo_signal["target_ago_days"] = 2
         elif "yesterday" in q_low or "昨天" in q_low:
             remo_signal["target_ago_days"] = 1
-        elif "大前天" in q_low:
-            remo_signal["target_ago_days"] = 3
 
         remo_signal["expand_adjacent_days"] = bool(
             re.search(r"\b(?:the\s+)?day\s+(?:before|after)\b", q_low) or
@@ -319,7 +373,9 @@ class Transducer:
             remo_signal["relative_scope_days"] = 8
         elif re.search(r"\b(?:last|past)\s+month\b", q_low) or "上个月" in q_low:
             remo_signal["relative_scope_days"] = 35
-        elif "this year" in q_low or "今年" in q_low or "去年" in q_low:
+        elif "last year" in q_low or "去年" in q_low:
+            remo_signal["relative_scope_days"] = 730
+        elif "this year" in q_low or "今年" in q_low:
             remo_signal["relative_scope_days"] = 365
 
         months_map = {
@@ -336,26 +392,32 @@ class Transducer:
         m_range = re.search(r"from\s+([a-z]+)\s+to\s+([a-z]+)", q_low)
         if m_range and m_range.group(1) in months_map and m_range.group(2) in months_map:
             m1, m2 = months_map[m_range.group(1)], months_map[m_range.group(2)]
-            for m_idx in range(min(m1, m2), max(m1, m2) + 1):
+            month_indices = range(m1, m2 + 1) if m1 <= m2 else (list(range(m1, 13)) + list(range(1, m2 + 1)))
+            for m_idx in month_indices:
                 remo_signal["target_months"].append(f"{m_idx:02d}")
         else:
             for m_name, m_num in months_map.items():
                 if re.search(r"\b" + m_name + r"\b", q_low):
                     remo_signal["target_months"].append(f"{m_num:02d}")
-            for m_match in re.findall(r"(?:十一|十二|[一二三四五六七八九十])月", query):
-                if m_match in zh_months_map:
-                    remo_signal["target_months"].append(f"{zh_months_map[m_match]:02d}")
+
+        for m_match in re.findall(r"(?:十一|十二|[一二三四五六七八九十])月", query):
+            if m_match in zh_months_map:
+                remo_signal["target_months"].append(f"{zh_months_map[m_match]:02d}")
+        for m_num_str in re.findall(r"(?<![\d])(1[0-2]|[1-9])月", query):
+            remo_signal["target_months"].append(f"{int(m_num_str):02d}")
 
         remo_signal["target_months"] = sorted(list(set(remo_signal["target_months"])))
 
         gu_probes = set()
         q_clean = re.sub(r"(?<=\d),(?=\d{3}\b)", "", query)
         for w in re.findall(r"(?<![A-Za-z0-9])[A-Z][a-z0-9\-\'\$]{2,}(?![A-Za-z0-9])", q_clean):
-            wl = w.lower()
-            if wl not in STOP_WORDS:
+            wl = re.sub(r"^[\-\']+|[\-\'\$]+$", "", w.lower())
+            if wl.startswith("$") and (len(wl) < 2 or not wl[1].isdigit()):
+                wl = wl.lstrip("$")
+            if len(wl) >= 2 and any(ch.isalnum() for ch in wl) and wl not in STOP_WORDS:
                 gu_probes.add(wl)
 
-        for w in re.findall(r"(?<![A-Za-z0-9])\d+[\.\d]*\s*(?:[a-zA-Z%]+|\$)?(?![A-Za-z0-9])|\$\d+[\.\d]*", q_clean):
+        for w in re.findall(r"(?<![A-Za-z0-9])(?:\$\d+(?:\.\d+)*|\d+(?:\.\d+)?(?:[a-zA-Z%]+|\$)?)(?![A-Za-z0-9])", q_clean):
             wl = w.lower().strip()
             if len(wl) >= 2 and wl not in STOP_WORDS and not wl.isdigit():
                 gu_probes.add(wl)
@@ -365,7 +427,16 @@ class Transducer:
 
         mi_probes = set()
         if hebbian_net is not None:
-            for sp in hebbian_net.get_associated_probes(kws, top_k=10):
+            seed_tokens = list(kws)
+            # Also probe multi-char CJK substrings present directly in the synaptic table (e.g. Strategy 2).
+            for run in re.findall(r"[\u4e00-\u9fa5]{2,}", query):
+                max_sub = min(len(run), 8)
+                for span in range(2, max_sub + 1):
+                    for i in range(len(run) - span + 1):
+                        sub = run[i:i + span]
+                        if sub in hebbian_net.adj and sub not in seed_tokens:
+                            seed_tokens.append(sub)
+            for sp in hebbian_net.get_associated_probes(seed_tokens, top_k=10):
                 mi_probes.add(sp)
 
         for kw in kws:
@@ -374,6 +445,7 @@ class Transducer:
 
         gu_list = sorted(list(gu_probes))
         mi_list = sorted(list(mi_probes))
+        remo_signal["gu_probes"] = gu_list
         remo_signal["mi_probes"] = mi_list
 
         return {
@@ -391,7 +463,7 @@ class DNAMemoryStore:
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = db_path
         self.blocks: Dict[str, DateBlock] = {}
-        self.all_turns: List[Turn] = []
+        self._next_turn_id: int = 0
         self._conn: Optional[sqlite3.Connection] = None
         self.hebbian_net = HebbianAssociationNetwork()
 
@@ -466,26 +538,10 @@ class DNAMemoryStore:
             v_dict = json.loads(row["exposed_vocab"])
             block = DateBlock(date_str=d_str, turn_count=row["turn_count"], is_open=False)
             block.exposed_vocab = defaultdict(list, v_dict)
+            for tok in block.exposed_vocab.keys():
+                if len(tok) >= 4 and not _is_cjk(tok):
+                    block.prefix4[tok[:4]].add(tok)
             self.blocks[d_str] = block
-
-        if not self.blocks:
-            cur.execute("SELECT id, session_id, date_str, local_idx, role, content, timestamp FROM dna_turns ORDER BY id ASC")
-            turn_rows = cur.fetchall()
-            if turn_rows:
-                for r in turn_rows:
-                    norm_date = r["date_str"]
-                    if norm_date not in self.blocks:
-                        self.blocks[norm_date] = DateBlock(date_str=norm_date, is_open=False)
-                    block = self.blocks[norm_date]
-                    local_idx = r["local_idx"]
-                    tokens = UniversalShingleTokenizer.extract_keywords(r["content"])
-                    self.hebbian_net.reinforce_turn(tokens)
-                    for tok in tokens:
-                        for s in UniversalShingleTokenizer.get_shingles(tok):
-                            if local_idx not in block.exposed_vocab[s]:
-                                block.exposed_vocab[s].append(local_idx)
-                    block.turn_count = max(block.turn_count, local_idx + 1)
-                self.flush_meta()
 
         cur.execute("SELECT a_token, b_token, weight FROM associations")
         for a_row in cur.fetchall():
@@ -504,6 +560,34 @@ class DNAMemoryStore:
             for df_row in cur.execute("SELECT token, df FROM token_df").fetchall():
                 self.hebbian_net.doc_freq[df_row["token"]] = int(df_row["df"])
 
+        cur.execute("SELECT COALESCE(MAX(id), 0) AS max_id FROM dna_turns")
+        max_row = cur.fetchone()
+        self._next_turn_id = int(max_row["max_id"]) if max_row else 0
+
+        if not self.blocks:
+            cur.execute("SELECT id, session_id, date_str, local_idx, role, content, timestamp FROM dna_turns ORDER BY id ASC")
+            turn_rows = cur.fetchall()
+            if turn_rows:
+                rebuild_hebbian = (self.hebbian_net.total_turns == 0)
+                for r in turn_rows:
+                    norm_date = r["date_str"]
+                    if norm_date not in self.blocks:
+                        self.blocks[norm_date] = DateBlock(date_str=norm_date, is_open=False)
+                    block = self.blocks[norm_date]
+                    local_idx = r["local_idx"]
+                    tokens = UniversalShingleTokenizer.extract_keywords(r["content"], max_kws=None)
+                    if rebuild_hebbian:
+                        self.hebbian_net.reinforce_turn(tokens)
+                    for tok in tokens:
+                        for s in UniversalShingleTokenizer.get_shingles(tok):
+                            lst = block.exposed_vocab[s]
+                            if not lst or lst[-1] != local_idx:
+                                lst.append(local_idx)
+                            if len(s) >= 4 and not _is_cjk(s):
+                                block.prefix4[s[:4]].add(s)
+                    block.turn_count = max(block.turn_count, local_idx + 1)
+                self.flush_meta()
+
     def append_turn(self, session_id: str, date_str: str, role: str, content: str, timestamp: float = 0.0, commit: bool = True) -> Turn:
         """Append a single dialogue turn and update TAD + Hebbian indices."""
         norm_date = normalize_date_key(date_str)
@@ -515,7 +599,7 @@ class DNAMemoryStore:
             self.load_active_turns(block)
 
         local_idx = len(block.turns) if block.is_open else block.turn_count
-        turn_id = len(self.all_turns)
+        turn_id = self._next_turn_id
 
         if self._conn:
             cur = self._conn.cursor()
@@ -524,6 +608,7 @@ class DNAMemoryStore:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (session_id, norm_date, local_idx, role, content, timestamp))
             turn_id = cur.lastrowid or turn_id
+        self._next_turn_id = max(self._next_turn_id + 1, turn_id + 1)
 
         t = Turn(
             turn_id=turn_id,
@@ -533,25 +618,48 @@ class DNAMemoryStore:
             content=content,
             timestamp=timestamp
         )
-        self.all_turns.append(t)
 
-        tokens = UniversalShingleTokenizer.extract_keywords(content)
-        self.hebbian_net.reinforce_turn(tokens)
+        tokens = UniversalShingleTokenizer.extract_keywords(content, max_kws=None)
+        updated_edges, unique_tokens = self.hebbian_net._reinforce_turn_delta(
+            tokens, track_edges=bool(self._conn and commit)
+        )
 
         block.turns.append(t)
         block.turn_count = max(block.turn_count, local_idx + 1)
 
         for tok in tokens:
             for s in UniversalShingleTokenizer.get_shingles(tok):
-                if local_idx not in block.exposed_vocab[s]:
-                    block.exposed_vocab[s].append(local_idx)
+                lst = block.exposed_vocab[s]
+                if not lst or lst[-1] != local_idx:
+                    lst.append(local_idx)
+                if len(s) >= 4 and not _is_cjk(s):
+                    block.prefix4[s[:4]].add(s)
 
         if self._conn and commit:
+            now_ts = time.time()
             cur = self._conn.cursor()
             cur.execute("""
                 INSERT OR REPLACE INTO dna_blocks (date_str, turn_count, exposed_vocab, updated_at)
                 VALUES (?, ?, ?, ?)
-            """, (norm_date, block.turn_count, json.dumps(dict(block.exposed_vocab), ensure_ascii=False), time.time()))
+            """, (norm_date, block.turn_count, json.dumps(dict(block.exposed_vocab), ensure_ascii=False), now_ts))
+            if updated_edges:
+                edge_rows = []
+                for a_tok, b_tok, weight in updated_edges:
+                    edge_rows.append((a_tok, b_tok, weight, now_ts))
+                    edge_rows.append((b_tok, a_tok, weight, now_ts))
+                cur.executemany(
+                    "INSERT OR REPLACE INTO associations (a_token, b_token, weight, last_used) VALUES (?, ?, ?, ?)",
+                    edge_rows
+                )
+            if unique_tokens:
+                cur.executemany(
+                    "INSERT OR REPLACE INTO token_df (token, df) VALUES (?, ?)",
+                    [(tok, self.hebbian_net.doc_freq[tok]) for tok in unique_tokens]
+                )
+            cur.execute(
+                "INSERT OR REPLACE INTO hebbian_meta (key, val) VALUES ('total_turns', ?)",
+                (str(self.hebbian_net.total_turns),)
+            )
             self._conn.commit()
 
         return t
@@ -640,64 +748,157 @@ class DNAMemoryStore:
             self._conn = None
 
 
+def _cjk_bigram_intersection(term: str, exposed_vocab: Dict[str, List[int]]) -> Set[int]:
+    """Match 3+ char CJK phrases against 2-gram exposed_vocab entries by turn-index intersection."""
+    valid_bgs: List[str] = []
+    for run in re.findall(r"[\u4e00-\u9fa5]{2,}", term):
+        for i in range(len(run) - 1):
+            bg = run[i:i + 2]
+            if bg[0] not in UniversalShingleTokenizer.ZH_STOPS and bg[1] not in UniversalShingleTokenizer.ZH_STOPS:
+                valid_bgs.append(bg)
+    if not valid_bgs:
+        return set()
+    sets = []
+    for bg in valid_bgs:
+        if bg not in exposed_vocab:
+            return set()
+        sets.append(set(exposed_vocab[bg]))
+    result = sets[0]
+    for s in sets[1:]:
+        result = result.intersection(s)
+        if not result:
+            return set()
+    return result
+
+
+def _ensure_prefix4(block: DateBlock):
+    """Lazily build prefix4 buckets if exposed_vocab was populated externally."""
+    if not block.prefix4 and block.exposed_vocab:
+        for tok in block.exposed_vocab.keys():
+            if len(tok) >= 4 and not _is_cjk(tok):
+                block.prefix4[tok[:4]].add(tok)
+
+
+def _vocab_matching_turns(term: str, block: DateBlock) -> Set[int]:
+    """Return all local turn indices in a block matching term (deduplicated via O(1) buckets)."""
+    exposed_vocab = block.exposed_vocab
+    hits: Set[int] = set()
+    if term in exposed_vocab:
+        hits.update(exposed_vocab[term])
+    if _is_cjk(term):
+        if not hits and len(term) >= 3:
+            hits.update(_cjk_bigram_intersection(term, exposed_vocab))
+        return hits
+
+    term_stem = _stem_plural(term)
+    if term_stem != term and term_stem in exposed_vocab:
+        hits.update(exposed_vocab[term_stem])
+    if len(term) >= 4:
+        _ensure_prefix4(block)
+        for v_word in block.prefix4.get(term[:4], ()):
+            v_stem = _stem_plural(v_word)
+            if term_stem == v_stem or v_word.startswith(term) or term.startswith(v_word):
+                hits.update(exposed_vocab[v_word])
+    return hits
+
+
+def _compute_temporal_targets(all_dates: List[str], signal: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:
+    """Compute (all_temporally_activated_dates, narrow_temporal_target_dates)."""
+    activated: Set[str] = set()
+    narrow_targets: Set[str] = set()
+    if not all_dates:
+        return activated, narrow_targets
+
+    ref_d = signal.get("reference_date")
+    ref_dt = parse_date_dt(ref_d or all_dates[-1])
+
+    target_ago = signal.get("target_ago_days")
+    if target_ago is not None:
+        target_dt = ref_dt - datetime.timedelta(days=target_ago)
+        closest_date = min(all_dates, key=lambda d: abs((parse_date_dt(d) - target_dt).total_seconds()))
+        activated.add(closest_date)
+        narrow_targets.add(closest_date)
+        closest_dt = parse_date_dt(closest_date)
+        for d in all_dates:
+            if abs((parse_date_dt(d) - closest_dt).days) <= 1:
+                activated.add(d)
+
+    rel_scope = signal.get("relative_scope_days")
+    if rel_scope is not None:
+        for d in all_dates:
+            diff = (ref_dt - parse_date_dt(d)).days
+            if -1 <= diff <= rel_scope:
+                activated.add(d)
+                if rel_scope <= 35:
+                    narrow_targets.add(d)
+
+    target_months = signal.get("target_months", [])
+    if target_months:
+        for d in all_dates:
+            if any(f"-{m}-" in d for m in target_months):
+                activated.add(d)
+                narrow_targets.add(d)
+
+    return activated, narrow_targets
+
+
 class Remo:
     """Stage 2: Chromatin remodeler executing TAD phase separation and scoring."""
 
     @classmethod
     def remodel(cls, store: DNAMemoryStore, signal: Dict[str, Any]) -> List[DateBlock]:
-        """Select and hydrate top-scoring DateBlocks using super-enhancer synergy."""
+        """Select and hydrate top-scoring DateBlocks using IDF and turn-level synergy."""
         all_dates = sorted(list(store.blocks.keys()))
         if not all_dates:
             return []
 
-        activated_date_set: Set[str] = set()
+        activated_date_set, _ = _compute_temporal_targets(all_dates, signal)
         kws = signal.get("query_keywords", [])
+        gu_probes = signal.get("gu_probes", kws)
         mi_probes = signal.get("mi_probes", [])
-        distinct_probes = set(kws + mi_probes)
-        ref_d = signal.get("reference_date")
+        gu_set = set(gu_probes)
+        mi_only = [p for p in mi_probes if p not in gu_set]
 
-        target_ago = signal.get("target_ago_days")
-        if target_ago is not None:
-            ref_dt = parse_date_dt(ref_d or all_dates[-1])
-            target_dt = ref_dt - datetime.timedelta(days=target_ago)
-            closest_date = min(all_dates, key=lambda d: abs((parse_date_dt(d) - target_dt).total_seconds()))
-            activated_date_set.add(closest_date)
-            for d in all_dates:
-                if abs((parse_date_dt(d) - parse_date_dt(closest_date)).days) <= 1:
-                    activated_date_set.add(d)
+        total_turns = max(1, store.hebbian_net.total_turns)
+        doc_freq = store.hebbian_net.doc_freq
 
-        rel_scope = signal.get("relative_scope_days")
-        if rel_scope is not None:
-            ref_dt = parse_date_dt(ref_d or all_dates[-1])
-            for d in all_dates:
-                diff = (ref_dt - parse_date_dt(d)).days
-                if -1 <= diff <= rel_scope:
-                    activated_date_set.add(d)
+        gu_weights = [
+            (term, 2.0 * math.log(1.0 + total_turns / (doc_freq.get(term, 0) + 1.0)))
+            for term in gu_probes
+        ]
+        mi_weights = [
+            (term, 1.0 * math.log(1.0 + total_turns / (doc_freq.get(term, 0) + 1.0)))
+            for term in mi_only
+        ]
 
-        target_months = signal.get("target_months", [])
-        if target_months:
-            for d in all_dates:
-                if any(f"-{m}-" in d for m in target_months):
-                    activated_date_set.add(d)
-
-        synergy_mult = len(distinct_probes) ** 1.5 if distinct_probes else 1.0
         date_scores: Dict[str, float] = defaultdict(float)
 
         for d_str, block in store.blocks.items():
-            matched_vocab_count = 0
-            for term in distinct_probes:
-                term_stem = term.rstrip("s") if len(term) >= 4 else term
-                if term in block.exposed_vocab:
-                    matched_vocab_count += 1
-                else:
-                    for v in block.exposed_vocab.keys():
-                        v_stem = v.rstrip("s") if len(v) >= 4 else v
-                        if term_stem == v_stem or (len(term) >= 4 and len(v) >= 4 and (v.startswith(term) or term.startswith(v))):
-                            matched_vocab_count += 1
-                            break
+            turn_cohit: Dict[int, float] = defaultdict(float)
+            block_idf_sum = 0.0
+            matched_gu_prefixes: Set[str] = set()
 
-            if matched_vocab_count > 0:
-                date_scores[d_str] = (matched_vocab_count ** 1.5) * synergy_mult
+            for term, w in gu_weights:
+                t_hits = _vocab_matching_turns(term, block)
+                if t_hits:
+                    block_idf_sum += w
+                    if len(term) >= 4 and not _is_cjk(term):
+                        matched_gu_prefixes.add(term[:4])
+                    for t_idx in t_hits:
+                        turn_cohit[t_idx] += w
+
+            for term, w in mi_weights:
+                if len(term) == 4 and term in matched_gu_prefixes:
+                    continue
+                t_hits = _vocab_matching_turns(term, block)
+                if t_hits:
+                    block_idf_sum += w
+                    for t_idx in t_hits:
+                        turn_cohit[t_idx] += w
+
+            if block_idf_sum > 0:
+                max_turn_score = max(turn_cohit.values()) if turn_cohit else 0.0
+                date_scores[d_str] = block_idf_sum + 1.5 * max_turn_score
 
         sorted_date_by_score = sorted(date_scores.items(), key=lambda x: x[1], reverse=True)
         top_k_blocks = 8 if signal.get("is_multi_sess") else 5
@@ -734,7 +935,8 @@ class Heli:
         cls,
         active_blocks: List[DateBlock],
         candidate_terms: Set[str],
-        is_single_sess: bool = False
+        is_single_sess: bool = False,
+        temporal_target_dates: Optional[Set[str]] = None
     ) -> List[TranscriptionBubble]:
         """Extract non-overlapping causal context slices constrained by session_id."""
         bubbles = []
@@ -743,24 +945,29 @@ class Heli:
             if not block.is_open:
                 continue
 
-            hit_turn_indices = defaultdict(list)
+            hit_turn_sets: Dict[int, Set[str]] = defaultdict(set)
             for term in candidate_terms:
-                term_stem = term.rstrip("s") if len(term) >= 4 else term
-                if term in block.exposed_vocab:
-                    for turn_idx in block.exposed_vocab[term]:
-                        hit_turn_indices[turn_idx].append(term)
-                else:
-                    for v_word, turn_list in block.exposed_vocab.items():
-                        v_stem = v_word.rstrip("s") if len(v_word) >= 4 else v_word
-                        if term_stem == v_stem or (len(term) >= 4 and len(v_word) >= 4 and (v_word.startswith(term) or term.startswith(v_word))):
-                            for turn_idx in turn_list:
-                                hit_turn_indices[turn_idx].append(term)
+                for turn_idx in _vocab_matching_turns(term, block):
+                    hit_turn_sets[turn_idx].add(term)
 
-            if not hit_turn_indices:
+            if not hit_turn_sets:
+                # Fallback for pure-temporal queries when an explicitly targeted DateBlock has no lexical hits.
+                if temporal_target_dates and block.date_str in temporal_target_dates and block.turns:
+                    sess_buckets: Dict[str, List[Turn]] = defaultdict(list)
+                    for t in block.turns:
+                        sess_buckets[t.session_id].append(t)
+                    for sid, s_turns in sess_buckets.items():
+                        bubbles.append(TranscriptionBubble(
+                            date_str=block.date_str,
+                            session_id=sid,
+                            anchor_turn_idx=0,
+                            turns=s_turns,
+                            anchor_words=["__temporal__"]
+                        ))
                 continue
 
             unwound_turn_sets = set()
-            sorted_anchors = sorted(hit_turn_indices.keys(), key=lambda idx: len(hit_turn_indices[idx]), reverse=True)
+            sorted_anchors = sorted(hit_turn_sets.keys(), key=lambda idx: len(hit_turn_sets[idx]), reverse=True)
 
             for anchor_idx in sorted_anchors:
                 if anchor_idx in unwound_turn_sets or anchor_idx >= len(block.turns):
@@ -770,7 +977,7 @@ class Heli:
                 target_sid = anchor_turn.session_id
                 same_sess_indices = [i for i, t in enumerate(block.turns) if t.session_id == target_sid]
 
-                if is_single_sess or len(hit_turn_indices[anchor_idx]) >= 4:
+                if is_single_sess or len(hit_turn_sets[anchor_idx]) >= 4:
                     bubble_indices = same_sess_indices
                 else:
                     pos_in_sess = same_sess_indices.index(anchor_idx) if anchor_idx in same_sess_indices else 0
@@ -787,7 +994,7 @@ class Heli:
                     session_id=target_sid,
                     anchor_turn_idx=anchor_idx,
                     turns=bubble_turns,
-                    anchor_words=hit_turn_indices[anchor_idx]
+                    anchor_words=sorted(hit_turn_sets[anchor_idx])
                 ))
 
         return bubbles
@@ -795,6 +1002,38 @@ class Heli:
 
 class MolecularSoup:
     """Stage 4: Dual-stream thermodynamic hybridization with BM25 length normalization."""
+
+    @staticmethod
+    def _compile_gu_patterns(gu_probes: List[str]) -> List[Tuple[str, str, bool, Optional[re.Pattern]]]:
+        compiled = []
+        for probe in gu_probes:
+            if _is_cjk(probe):
+                compiled.append((probe, probe, True, None))
+            else:
+                probe_stem = _stem_plural(probe)
+                if len(probe) >= 4:
+                    pat = re.compile(
+                        r"(?<![A-Za-z0-9])(?:" + re.escape(probe) + r"|" + re.escape(probe_stem) + r"s?)(?![A-Za-z0-9])"
+                    )
+                else:
+                    pat = re.compile(r"(?<![A-Za-z0-9])" + re.escape(probe) + r"(?![A-Za-z0-9])")
+                compiled.append((probe, probe_stem, False, pat))
+        return compiled
+
+    @staticmethod
+    def _compile_mi_patterns(mi_probes: List[str]) -> List[Tuple[str, str, bool, Optional[re.Pattern]]]:
+        compiled = []
+        for probe in mi_probes:
+            if _is_cjk(probe):
+                compiled.append((probe, probe, True, None))
+            else:
+                probe_stem = _stem_plural(probe)
+                if len(probe) >= 4:
+                    pat = re.compile(r"(?<![A-Za-z0-9])" + re.escape(probe_stem))
+                else:
+                    pat = re.compile(r"(?<![A-Za-z0-9])" + re.escape(probe) + r"s?(?![A-Za-z0-9])")
+                compiled.append((probe, probe_stem, False, pat))
+        return compiled
 
     @classmethod
     def hybridize(
@@ -808,74 +1047,125 @@ class MolecularSoup:
         exact_facts_dict: Dict[int, Tuple[Turn, float, str]] = {}
         fuzzy_contexts_dict: Dict[int, Tuple[Turn, float, str]] = {}
 
+        gu_set = set(gu_probes)
+        gu_patterns = cls._compile_gu_patterns(gu_probes)
+        mi_patterns = cls._compile_mi_patterns([p for p in mi_probes if p not in gu_set])
+
         seen_turns: Dict[int, Turn] = {}
         for b in bubbles:
             for t in b.turns:
                 seen_turns[t.turn_id] = t
+
+        causal_candidates: Dict[int, Tuple[int, List[str]]] = {}
+        hit_turn_ids_in_bubbles: Set[int] = set()
 
         for turn_id, turn in seen_turns.items():
             content_low = turn.content.lower()
             content_norm = re.sub(r"(?<=\d),(?=\d{3}\b)", "", content_low)
 
             gu_hit_score = 0.0
-            gu_hit_probes = []
-            for probe in gu_probes:
-                is_cn = any("\u4e00" <= ch <= "\u9fa5" for ch in probe)
+            gu_hit_probes: List[str] = []
+            for probe, probe_stem, is_cn, pat in gu_patterns:
                 if is_cn:
                     hit = probe in content_low or probe in content_norm
                 else:
-                    probe_stem = probe.rstrip("s") if len(probe) >= 4 else probe
-                    hit = bool(
-                        re.search(r"(?<![A-Za-z0-9])" + re.escape(probe) + r"(?![A-Za-z0-9])", content_norm) or
-                        (len(probe) >= 4 and re.search(r"(?<![A-Za-z0-9])" + re.escape(probe_stem) + r"s?(?![A-Za-z0-9])", content_norm))
-                    )
+                    hit = (probe_stem in content_norm) and bool(pat.search(content_norm))
                 if hit:
                     gu_hit_score += 5.0
                     gu_hit_probes.append(probe)
 
             if gu_hit_score > 0:
+                hit_turn_ids_in_bubbles.add(turn_id)
                 text_len = max(1, len(content_low))
-                b_penalty = 1.0 - 0.45 + 0.45 * (text_len / 35.0)
+                b_penalty = 0.55 + 0.45 * (text_len / 35.0)
                 exact_facts_dict[turn_id] = (turn, gu_hit_score / b_penalty, ", ".join(gu_hit_probes))
 
+            matched_gu_prefixes = {p[:4] for p in gu_hit_probes if not _is_cjk(p) and len(p) >= 4}
             mi_hit_score = 0.0
-            mi_hit_probes = []
-            for probe in mi_probes:
-                is_cn = any("\u4e00" <= ch <= "\u9fa5" for ch in probe)
+            mi_hit_probes: List[str] = []
+            for probe, probe_stem, is_cn, pat in mi_patterns:
+                if probe in matched_gu_prefixes:
+                    continue
                 if is_cn:
                     hit = probe in content_low or probe in content_norm
                 else:
-                    probe_stem = probe.rstrip("s") if len(probe) >= 4 else probe
-                    hit = bool(
-                        (probe in content_norm) or
-                        (len(probe) >= 4 and probe_stem in content_norm) or
-                        (len(probe) == 4 and re.search(r"(?<![A-Za-z0-9])" + re.escape(probe), content_norm))
-                    )
-                if hit and probe not in gu_probes:
+                    hit = (probe_stem in content_norm) and bool(pat.search(content_norm))
+                if hit:
                     mi_hit_score += 2.0
                     mi_hit_probes.append(probe)
 
             if mi_hit_score > 0:
+                hit_turn_ids_in_bubbles.add(turn_id)
                 text_len = max(1, len(content_low))
-                b_penalty = 1.0 - 0.45 + 0.45 * (text_len / 35.0)
+                b_penalty = 0.55 + 0.45 * (text_len / 35.0)
                 fuzzy_contexts_dict[turn_id] = (turn, mi_hit_score / b_penalty, ", ".join(mi_hit_probes))
+
+        # Preserve [-2, +3] causal neighbors around matched turns and pure-temporal fallback turns.
+        for b in bubbles:
+            if b.anchor_words == ["__temporal__"]:
+                for t in b.turns:
+                    if t.turn_id not in exact_facts_dict and t.turn_id not in fuzzy_contexts_dict:
+                        b_penalty = 0.55 + 0.45 * (max(1, len(t.content)) / 35.0)
+                        fuzzy_contexts_dict[t.turn_id] = (t, 1.0 / b_penalty, "temporal_window")
+                continue
+
+            anchor_indices = [i for i, t in enumerate(b.turns) if t.turn_id in hit_turn_ids_in_bubbles]
+            if not anchor_indices:
+                continue
+            for i, t in enumerate(b.turns):
+                if t.turn_id in exact_facts_dict or t.turn_id in fuzzy_contexts_dict:
+                    continue
+                # Respect asymmetric [-2, +3] window around any matched anchor inside the bubble.
+                for a_i in anchor_indices:
+                    offset = i - a_i
+                    if -2 <= offset <= 3:
+                        dist = abs(offset)
+                        prev = causal_candidates.get(t.turn_id)
+                        if prev is None or dist < prev[0]:
+                            causal_candidates[t.turn_id] = (dist, b.anchor_words)
+                        break
+
+        for turn_id, (dist, anchor_words) in causal_candidates.items():
+            if turn_id not in exact_facts_dict and turn_id not in fuzzy_contexts_dict:
+                turn = seen_turns[turn_id]
+                b_penalty = 0.55 + 0.45 * (max(1, len(turn.content)) / 35.0)
+                score = 0.35 / (b_penalty * (1.0 + 0.25 * dist))
+                motifs = ", ".join(anchor_words[:3])
+                fuzzy_contexts_dict[turn_id] = (turn, score, f"causal_context({motifs})")
 
         exact_facts = list(exact_facts_dict.values())
         fuzzy_contexts = list(fuzzy_contexts_dict.values())
 
         if target_dt is not None:
-            decayed_facts = []
-            for turn, sc, pr in exact_facts:
-                day_diff = abs((parse_date_dt(turn.date_str) - target_dt).days)
-                penalty = max(0.2, 1.0 - (day_diff / 60.0) * 0.8)
-                decayed_facts.append((turn, sc * penalty, pr))
-            exact_facts = decayed_facts
+            def _apply_decay(items: List[Tuple[Turn, float, str]]) -> List[Tuple[Turn, float, str]]:
+                decayed = []
+                for turn, sc, pr in items:
+                    day_diff = abs((parse_date_dt(turn.date_str) - target_dt).days)
+                    penalty = max(0.2, 1.0 - (day_diff / 60.0) * 0.8)
+                    decayed.append((turn, sc * penalty, pr))
+                return decayed
+
+            exact_facts = _apply_decay(exact_facts)
+            fuzzy_contexts = _apply_decay(fuzzy_contexts)
 
         return exact_facts, fuzzy_contexts
 
 
 class DualStreamPresenter:
     """Formats Top-K scored turns chronologically into an LLM context prompt."""
+
+    _ROLE_MAP = {
+        "user": "User",
+        "assistant": "Assistant",
+        "system": "System",
+        "document": "Document",
+    }
+
+    @classmethod
+    def _format_role(cls, role: str) -> str:
+        if not role:
+            return "Assistant"
+        return cls._ROLE_MAP.get(role.lower(), role.capitalize())
 
     @staticmethod
     def format_presentation(
@@ -897,9 +1187,9 @@ class DualStreamPresenter:
 
         if exact_facts:
             top_facts = sorted(exact_facts, key=lambda x: (x[1], x[0].turn_id), reverse=True)[:max_facts]
-            top_facts.sort(key=lambda x: x[0].turn_id)
+            top_facts.sort(key=lambda x: (x[0].date_str, x[0].timestamp, x[0].turn_id))
             for turn, _, probes in top_facts:
-                role_tag = "User" if turn.role == "user" else "Assistant"
+                role_tag = DualStreamPresenter._format_role(turn.role)
                 prompt_parts.append(f"- [{turn.date_str} | {role_tag}]: \"{turn.content}\"  (Probes: {probes})")
         else:
             prompt_parts.append("(No exact factual records retrieved)")
@@ -911,9 +1201,9 @@ class DualStreamPresenter:
 
         if fuzzy_contexts:
             top_contexts = sorted(fuzzy_contexts, key=lambda x: (x[1], x[0].turn_id), reverse=True)[:max_contexts]
-            top_contexts.sort(key=lambda x: x[0].turn_id)
+            top_contexts.sort(key=lambda x: (x[0].date_str, x[0].timestamp, x[0].turn_id))
             for turn, _, probes in top_contexts:
-                role_tag = "User" if turn.role == "user" else "Assistant"
+                role_tag = DualStreamPresenter._format_role(turn.role)
                 prompt_parts.append(f"- [{turn.date_str} | {role_tag}]: \"{turn.content}\"  (Motifs: {probes})")
         else:
             prompt_parts.append("(No associative context records retrieved)")
@@ -969,13 +1259,22 @@ class FunesEngine:
         gu_probes = parsed["gu_probes"]
         mi_probes = parsed["mi_probes"]
 
+        all_dates = sorted(list(self.store.blocks.keys()))
+        _, narrow_temporal_targets = _compute_temporal_targets(all_dates, signal)
+
         active_blocks = Remo.remodel(self.store, signal)
         candidate_terms = set(gu_probes + mi_probes)
-        bubbles = Heli.unwind(active_blocks, candidate_terms, is_single_sess=parsed["is_single_sess"])
+        bubbles = Heli.unwind(
+            active_blocks,
+            candidate_terms,
+            is_single_sess=parsed["is_single_sess"],
+            temporal_target_dates=narrow_temporal_targets
+        )
 
         target_dt = None
         if signal.get("target_ago_days") is not None:
-            ref_dt = parse_date_dt(signal.get("reference_date") or (active_blocks[-1].date_str if active_blocks else "1970-01-01"))
+            effective_ref = signal.get("reference_date") or (all_dates[-1] if all_dates else "1970-01-01")
+            ref_dt = parse_date_dt(effective_ref)
             target_dt = ref_dt - datetime.timedelta(days=signal["target_ago_days"])
 
         exact_facts, fuzzy_contexts = MolecularSoup.hybridize(bubbles, gu_probes, mi_probes, target_dt=target_dt)

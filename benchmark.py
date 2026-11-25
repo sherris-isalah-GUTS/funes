@@ -41,7 +41,7 @@ def evaluate(data_file: str, limit: int = None):
     eval_count = len(eval_subset)
 
     print(f"\n{'='*75}")
-    print(f"  Funes 1.0 Advance Empirical Evaluation on LongMemEval-S")
+    print(f"  Funes 1.1.0 Empirical Evaluation on LongMemEval-S")
     print(f"  Total Questions: {eval_count} / {total_q}")
     print(f"{'='*75}\n")
 

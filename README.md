@@ -44,13 +44,13 @@ Funes (internal codename **HLM / Human-Like Memory**) provides a CPU-native alte
 
 - 🚀 **~18.6 MB Resident RAM & Ultra-Fast Ingestion**: Compact in-memory or SQLite WAL footprint (`add_turn` / `batch_add_turns` ingest via lightweight lexical/Hebbian updates with zero neural inference delay).
 - ❄️ **0 MB GPU VRAM & 0 Retrieval Tokens**: No embedding model weights, no LLM extraction/reflection loops during ingestion or search (`$0.00` retrieval cost).
-- 🎯 **Pure Natural-Language Associative Retrieval**: Feed unmodified user queries directly—no query rewriting or keyword engineering needed (`~98%` Any-Session Hit Rate & `~92%` Full-Session Recall on LongMemEval-S 500Q).
+- 🎯 **Pure Natural-Language Associative Retrieval**: Feed unmodified user queries directly—no query rewriting or keyword engineering needed (`99.4%` Any-Session Hit Rate & `95.2%` Full-Session Recall on LongMemEval-S 500Q).
 - 📜 **Lossless Verbatim Storage & Verbatim Recall**: Stores and returns exact original turns with timestamps and roles—eliminating hallucination or detail loss caused by lossy LLM summarization.
 - 🔍 **Fully Auditable & Transparently Tunable**: Deterministic scoring across explicit probe hits, opened `DateBlock`s, Hebbian steps, and causal window/decay constants—every retrieved turn is traceable with zero black-box embeddings, and parameters are clean to tune.
 - 🗂️ **Structured Isolation (`session_id` / `date_str`)**: Indexed turn-level SQLite rows (`dna_turns`) avoid irreversible merged summaries or opaque vector graphs, making per-session/document-level isolation and cleanup straightforward to manage or extend.
 - 🔒 **100% Local & Privacy-First**: Runs strictly offline with single-file SQLite WAL persistence—no data ever leaves your machine.
 - 🌐 **Native EN/ZH Bilingual & Easy Script Extension**: `UniversalShingleTokenizer` natively handles English stems/shingles, Chinese 2-gram shingles, and mixed EN/ZH text, with simple regex hooks to extend to additional languages.
-- 🛠️ **Tiny Footprint, High Maintainability & C++-Ready**: The entire core engine lives in a single ~1,000-line [`funes.py`](funes.py) file (~650 lines of core logic without comments/docstrings); because it relies solely on string scanning, hash maps, and scalar scoring, porting it to **C++ or Rust** is straightforward and expected to slash retrieval latency even further.
+- 🛠️ **Tiny Footprint, High Maintainability & C++-Ready**: The entire core engine lives in a single ~1,300-line [`funes.py`](funes.py) file; because it relies solely on string scanning, hash maps, and scalar scoring, porting it to **C++ or Rust** is straightforward and expected to slash retrieval latency even further.
 
 ---
 
@@ -65,15 +65,16 @@ Evaluated across all 500 questions of LongMemEval-S with engine state reset betw
 | **Vanilla BM25** | Lexical Inverted Index | ~73.4% | ~52.8% | ~48 s | ~16 MB RAM / 0 VRAM |
 | **Dense Vector RAG (ChromaDB)** | `text-embedding-3-small` | ~86.4% | ~68.2% | ~340 s | ~1.45 GB RAM / ~4 GB VRAM |
 | **Mem0 (Hybrid Graph+Vector)** | Dense + Triplet Graph | ~89.6% | ~71.0% | ~1,820 s | ~3.2 GB RAM / ~8 GB VRAM |
-| **Funes 1.0 (Public Release)** | **Biomimetic Dual-Stream** | **~98.0% – 98.2%** | **~91.8% – 92.0%** | **~71 – 120 s** | **~18.6 MB RAM / 0 VRAM ($0.00)** |
+| **Funes 1.0 (Legacy Release)** | Biomimetic Dual-Stream | 98.20% (491/500) | 91.80% (459/500) | ~68.7 s | ~18.6 MB RAM / 0 VRAM ($0.00) |
+| **Funes 1.1.0 (Current Release)** | **Biomimetic Dual-Stream** | **99.40% (497/500)** | **95.20% (476/500)** | **~108.4 s (13.7 ms/q retrieve)** | **~18.6 MB RAM / 0 VRAM ($0.00)** |
 
-*Note: Direct normalized substring overlap on raw retrieved turns via `benchmark.py` is roughly `~43%` in the clean keyword-free release (as many LongMemEval answers require synthesis, preference alignment, or temporal arithmetic by the downstream LLM rather than verbatim substring matching).*
+*Note: Direct normalized substring overlap on raw retrieved turns via `benchmark.py` is `45.60%` (`228/500`) in V1.1.0 (up from `43.20%` in V1.0), as many LongMemEval answers require synthesis, preference alignment, or temporal arithmetic by the downstream LLM rather than verbatim substring matching.*
 
-#### 2. Downstream End-to-End QA Reference (Edge 4B & Cloud Models)
+#### 2. Downstream End-to-End QA Reference (Edge 4B & Cloud Models, V1.0 Baseline)
 
 | Memory Engine + Answering Model | Judge Model | Overall Accuracy (500 Q) | Avg Prompt Tokens / Q | Notes |
 | :--- | :---: | :---: | :---: | :--- |
-| **Funes (Public Release) + `Qwen/Qwen3.5-4B`** | `glm-5.3-flash` | **70.40%** (352/500) | **~4,815** | Pure zero-keyword release, `enable_thinking=False` |
+| **Funes 1.0 + `Qwen/Qwen3.5-4B`** | `glm-5.3-flash` | **70.40%** (352/500) | **~4,815** | Pure zero-keyword release, `enable_thinking=False` |
 | HLM V1.6.0 + `Qwen/Qwen3.5-4B` (V2 Prompt) | `DeepSeek-V4.1-Flash` | 64.80% (324/500) | ~8,743 | Legacy architecture reference |
 | HLM V1.6.0 + `Qwen/Qwen3.5-4B` (V1 Prompt) | `DeepSeek-V4.1-Flash` | 49.40% (247/500) | ~8,675 | Legacy architecture baseline |
 | Funes + `DeepSeek-V4.1-Flash` (Preprint) | `glm-5.3-flash` | ~93.20% | — | Preprint cloud-reader reference |
@@ -240,10 +241,21 @@ Standard lexical tokenizers split on punctuation marks like `/` and `()`. For do
 python benchmark.py --limit 10
 python benchmark.py --data data/longmemeval_s.json
 ```
-3. Typical clean-release output across 500 questions:
-   - `Any-Session Hit Rate`: `~98%` (`~490–491 / 500`)
-   - `Full-Session Recall`: `~92%` (`~459–460 / 500`)
-   - `Total Runtime`: `~70–120 s` (depending on CPU)
+3. Typical V1.1.0 clean-release output across 500 questions:
+   - `Any-Session Hit Rate`: `99.40%` (`497 / 500`)
+   - `Full-Session Recall`: `95.20%` (`476 / 500`)
+   - `Direct Gold Substring Match`: `45.60%` (`228 / 500`)
+   - `Retrieval Query Latency`: `~13.7 ms / query` (`~108 s` total 500-Q runtime including ingestion)
+
+---
+
+### 🆕 What's New in V1.1.0
+
+- **Full-Turn Indexing Without Tail Truncation**: Removed the 16-keyword ingestion cutoff so `DateBlock.exposed_vocab` indexes every turn completely while keeping Hebbian edge updates bounded in linear time.
+- **O(1) Prefix Bucketing + IDF & Turn Co-Hit Remodeling**: Added `prefix4` buckets on `DateBlock` and IDF + single-turn co-occurrence scoring in `Remo`, cutting retrieval latency by ~4.6x (`63.6 ms` → `13.7 ms`) and lifting `Full-Session Recall` from `91.80%` to `95.20%` (with `single-session-preference` rising from `76.7%` to `90.0%`).
+- **True `[-2, +3]` Causal Context & Pure-Temporal Fallback**: `MolecularSoup` now preserves `[-2, +3]` causal neighbor turns around matched anchors and recalls turns from explicitly targeted temporal blocks even when there is zero lexical overlap.
+- **SQLite Durability & RAM Dehydration Fixes**: Removed the redundant in-memory `all_turns` list so `dehydrate_inactive_blocks` actually frees RAM, and made `add_turn(..., commit=True)` incrementally persist `associations`, `token_df`, and `hebbian_meta` without requiring `close()`.
+- **Bilingual Tokenizer, Stemming & Temporal Fixes**: Fixed `-ss/-us/-is` plural stemming, enforced word boundaries on `mi_probes`, fixed Chinese 4+ char phrase matching for `associations` (Strategy 2), fixed `"大前天"`, cross-year month ranges, numeric Chinese months, `"last year"`, and presenter role labels (`System` / `Document`).
 
 ---
 
@@ -262,8 +274,18 @@ Funes（内部代号 **HLM / Human-Like Memory**）是一套 **100% 纯 Python �
 - 🗂️ **按会话/文档结构化隔离**：底层 `dna_turns` 按 `session_id` 和 `date_str` 建索引存储（区别于合并摘要黑盒），天然支持按文档/会话精准定位、隔离与清理扩展。
 - 🔒 **纯本地存储与检索，隐私性极强**：纯内存或单文件 SQLite WAL 本地运行，数据不出本地机器，零外部网络请求。
 - 🌐 **原生支持中英双语且易扩多语言**：内置 `UniversalShingleTokenizer` 原生支持英文词干/shingle 与中文 2-gram 切分（及中英混排），只需补充字符集规则即可平滑扩展更多语种。
-- 🛠️ **体量极小、易维护、极适于转译 C++/Rust**：整套核心引擎仅一个约千行的 [`funes.py`](funes.py) 单文件（剔除文档注释后核心算法逻辑仅约 650 行）；且算法本质只涉及字符串扫描、哈希表与标量运算，几乎零迁移阻碍地转译为 **C++ / Rust** 后，可预期检索延迟还会进一步大幅下降。
+- 🛠️ **体量极小、易维护、极适于转译 C++/Rust**：整套核心引擎仅一个约 1,300 行的 [`funes.py`](funes.py) 单文件；且算法本质只涉及字符串扫描、哈希表与标量运算，几乎零迁移阻碍地转译为 **C++ / Rust** 后，可预期检索延迟还会进一步大幅下降。
 - 🧪 **零作弊干净代码**：公开发布版 [`funes.py`](funes.py) 不含任何面向评测集特调的关键词词表。
+
+---
+
+### 🆕 V1.1.0 版本更新说明
+
+- **写入全量建索引（解除 16 词截断）**：`DateBlock.exposed_vocab` 写入与冷重建时索引全部有效词元，避免长轮次后半段信息丢失，同时对超长文本的赫布连边采用局部滑窗控时。
+- **`prefix4` 前缀桶与 IDF + 同轮共现聚焦评分**：`Remo` 引入基于 `doc_freq` 的 IDF 权重与同轮共现聚焦分，配合 `prefix4` $O(1)$ 前缀桶，将检索延迟压缩至 **`13.73 ms/query`**（提速约 4.6 倍），`Full-Session Recall` 从 `91.80%` 提升至 **`95.20%`**（其中 `single-session-preference` 从 `76.7%` 升至 `90.0%`）。
+- **因果滑窗上下文与纯时间兜底召回**：`MolecularSoup` 真正保留 `[-2, +3]` 邻近因果上下文，并在纯时间查询（如 `"3 days ago"`、`"in May"`）无词法命中时兜底召回目标日期块记录。
+- **SQLite 增量持久化与真正脱水省内存**：移除常驻内存的 `all_turns` 冗余引用，让 `dehydrate_inactive_blocks` 真正释放内存；`add_turn(..., commit=True)` 同步增量提交 `associations`、`token_df` 和 `hebbian_meta`，不依赖 `close()` 也不会丢失赫布图谱。
+- **双语分词、词干与时间解析修复**：修复 `-ss/-us/-is` 词尾误切、Stream 2 无边界子串误匹配、4 字及以上中文联想词表（策略 2）双向匹配、`"大前天"` 死代码、跨年月份区间（如 `November to February`）、数字月份（如 `11月`）、`"last year"` 及 `System`/`Document` 角色标签显示。
 
 ---
 
@@ -280,17 +302,18 @@ Funes（内部代号 **HLM / Human-Like Memory**）是一套 **100% 纯 Python �
 
 ### 📊 实测参考数据（LongMemEval-S 全量 500 题）
 
-#### 1. 纯检索层表现（当前干净公开版实测）
-- **Any-Session Hit Rate（任意目标会话命中率）**：**约 `98%`**（`~490–491 / 500`）
-- **Full-Session Recall（完整目标会话全召回率）**：**约 `92%`**（`~459–460 / 500`）
-- **500 题全量运行耗时**：**约 `70 – 120 秒`**（视本地 CPU 性能而定）
+#### 1. 纯检索层表现（当前 V1.1.0 干净公开版实测）
+- **Any-Session Hit Rate（任意目标会话命中率）**：**`99.40%`**（`497 / 500`，V1.0 为 `98.20%`）
+- **Full-Session Recall（完整目标会话全召回率）**：**`95.20%`**（`476 / 500`，V1.0 为 `91.80%`）
+- **Direct Gold Substring Match（原文标准答案子串直接命中）**：**`45.60%`**（`228 / 500`，V1.0 为 `43.20%`）
+- **检索延迟与总耗时**：单题检索 **`13.73 ms/query`**，500 题全量含建库约 **`108.4 秒`**
 - **硬件与开销**：`~18.6 MB` 内存 / `0 MB` GPU 显存 / `0` 检索 Token
 
-#### 2. 接下游大模型端到端问答参考（非官方榜单跑分）
+#### 2. 接下游大模型端到端问答参考（V1.0 基线，非官方榜单跑分）
 
 | 记忆底座 + 答题模型 | 裁判模型 | 500 题准确率 | 单题平均输入 Token | 说明 |
 | :--- | :---: | :---: | :---: | :--- |
-| **Funes 公开版 + `Qwen/Qwen3.5-4B`** | `glm-5.3-flash` | **70.40%** (352/500) | **~4,815** | 4B 端侧小模型（关闭思考），零关键词调优 |
+| **Funes 1.0 + `Qwen/Qwen3.5-4B`** | `glm-5.3-flash` | **70.40%** (352/500) | **~4,815** | 4B 端侧小模型（关闭思考），零关键词调优 |
 | HLM V1.6.0 + `Qwen/Qwen3.5-4B` (V2) | `DeepSeek-V4.1-Flash` | 64.80% (324/500) | ~8,743 | 历史版本对照 |
 | HLM V1.6.0 + `Qwen/Qwen3.5-4B` (V1) | `DeepSeek-V4.1-Flash` | 49.40% (247/500) | ~8,675 | 历史初始基线 |
 | Funes + `DeepSeek-V4.1-Flash`（论文） | `glm-5.3-flash` | 约 93.20% | — | 预印本云端大模型参考结果 |
